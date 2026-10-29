@@ -2,6 +2,17 @@
 
 Fast, cross-platform file sharing between **Android** and **Desktop (Windows, macOS, Linux)** with an iOS-style glass UI. No cloud or internet required — transfers happen directly over your local Wi-Fi or mobile hotspot at maximum speeds (up to 50–100+ MB/s).
 
+🌐 **Website & Downloads:** [https://efronj.github.io/quickdropw/](https://efronj.github.io/quickdropw/)
+
+---
+
+## 📥 Downloads
+
+| Platform | Download Link | Notes |
+| :--- | :--- | :--- |
+| 📱 **Android** | [**Download QuickDrop.apk**](https://github.com/Efronj/quickdropw/raw/main/QuickDrop.apk) | Android 10+, signed APK, auto-sorts to Gallery |
+| 💻 **Windows PC** | [**Download QuickDrop-Windows.zip**](https://github.com/Efronj/quickdropw/raw/main/QuickDrop-Windows.zip) | Portable zip, 1-click launch via `QuickDrop.bat` |
+
 ---
 
 ## 📱 Android App

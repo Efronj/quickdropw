@@ -1,0 +1,604 @@
+<!DOCTYPE html>
+<html lang="en">
+<head>
+  <meta charset="UTF-8">
+  <meta name="viewport" content="width=device-width, initial-scale=1.0">
+  <title>QuickDrop — Fast Local Sharing for Android & Windows PC</title>
+  <meta name="description" content="Share photos, 4K videos, and files between Android and Windows PC at full Wi-Fi speed. No cloud, no internet required.">
+  <link rel="preconnect" href="https://fonts.googleapis.com">
+  <link rel="preconnect" href="https://fonts.gstatic.com" crossorigin>
+  <link href="https://fonts.googleapis.com/css2?family=Plus+Jakarta+Sans:wght@400;500;600;700;800&display=swap" rel="stylesheet">
+  <style>
+    :root {
+      --bg-start: #F8FAFC;
+      --bg-end: #F1F5F9;
+      --surface: #FFFFFF;
+      --surface-glass: rgba(255, 255, 255, 0.85);
+      --surface-muted: #F8FAFC;
+      --border: #E2E8F0;
+      --border-strong: #CBD5E1;
+
+      --blue: #2563EB;
+      --blue-soft: #EFF6FF;
+      --blue-glow: rgba(37, 99, 235, 0.28);
+
+      --violet: #7C3AED;
+      --violet-soft: #F5F3FF;
+
+      --mint: #10B981;
+      --mint-soft: #ECFDF5;
+
+      --text-1: #0F172A;
+      --text-2: #475569;
+      --text-3: #94A3B8;
+
+      --shadow-sm: 0 2px 8px rgba(15, 23, 42, 0.04);
+      --shadow-md: 0 10px 25px -5px rgba(15, 23, 42, 0.08);
+      --shadow-lg: 0 20px 35px -8px rgba(15, 23, 42, 0.12);
+    }
+
+    * {
+      box-sizing: border-box;
+      margin: 0;
+      padding: 0;
+      font-family: 'Plus Jakarta Sans', -apple-system, BlinkMacSystemFont, "Segoe UI", Roboto, sans-serif;
+    }
+
+    body {
+      background: linear-gradient(135deg, var(--bg-start), var(--bg-end), #EAF0F8);
+      min-height: 100vh;
+      color: var(--text-1);
+      overflow-x: hidden;
+      line-height: 1.5;
+    }
+
+    /* Ambient background glows */
+    .ambient-glows {
+      position: fixed;
+      inset: 0;
+      pointer-events: none;
+      z-index: 0;
+      overflow: hidden;
+    }
+    .blob {
+      position: absolute;
+      border-radius: 50%;
+      filter: blur(90px);
+      opacity: 0.14;
+    }
+    .blob-1 { width: 500px; height: 500px; background: var(--blue); top: -120px; left: -100px; }
+    .blob-2 { width: 450px; height: 450px; background: var(--violet); top: 30%; right: -120px; }
+    .blob-3 { width: 380px; height: 380px; background: var(--mint); bottom: -60px; left: 15%; }
+
+    .container {
+      max-width: 1140px;
+      margin: 0 auto;
+      padding: 0 24px;
+      position: relative;
+      z-index: 1;
+    }
+
+    /* Header Nav */
+    header {
+      padding: 24px 0;
+      display: flex;
+      align-items: center;
+      justify-content: space-between;
+    }
+    .logo {
+      display: flex;
+      align-items: center;
+      gap: 12px;
+      text-decoration: none;
+      color: var(--text-1);
+    }
+    .logo-icon {
+      width: 44px;
+      height: 44px;
+      border-radius: 14px;
+      background: linear-gradient(135deg, #3B82F6, var(--blue));
+      display: flex;
+      align-items: center;
+      justify-content: center;
+      color: white;
+      font-size: 22px;
+      box-shadow: 0 4px 12px var(--blue-glow);
+    }
+    .logo-text {
+      font-size: 22px;
+      font-weight: 800;
+      letter-spacing: -0.5px;
+    }
+    .nav-links {
+      display: flex;
+      align-items: center;
+      gap: 16px;
+    }
+    .nav-btn {
+      text-decoration: none;
+      font-size: 14px;
+      font-weight: 600;
+      padding: 8px 18px;
+      border-radius: 14px;
+      transition: all 0.2s cubic-bezier(0.34, 1.56, 0.64, 1);
+    }
+    .nav-btn-github {
+      background: var(--surface-glass);
+      color: var(--text-1);
+      border: 1px solid var(--border);
+      display: flex;
+      align-items: center;
+      gap: 8px;
+    }
+    .nav-btn-github:hover {
+      background: white;
+      border-color: var(--border-strong);
+      transform: translateY(-1px);
+    }
+
+    /* Hero Section */
+    .hero {
+      text-align: center;
+      padding: 60px 0 40px;
+    }
+    .badge {
+      display: inline-flex;
+      align-items: center;
+      gap: 8px;
+      background: var(--blue-soft);
+      border: 1px solid rgba(37, 99, 235, 0.25);
+      color: var(--blue);
+      padding: 6px 16px;
+      border-radius: 30px;
+      font-size: 13px;
+      font-weight: 700;
+      margin-bottom: 24px;
+    }
+    .badge-dot {
+      width: 8px;
+      height: 8px;
+      border-radius: 50%;
+      background: var(--blue);
+      box-shadow: 0 0 8px rgba(37, 99, 235, 0.6);
+    }
+    .hero h1 {
+      font-size: 52px;
+      font-weight: 800;
+      letter-spacing: -1.5px;
+      line-height: 1.15;
+      margin-bottom: 20px;
+      color: var(--text-1);
+    }
+    .hero h1 span {
+      background: linear-gradient(135deg, var(--blue), var(--violet));
+      -webkit-background-clip: text;
+      -webkit-text-fill-color: transparent;
+    }
+    .hero p {
+      font-size: 19px;
+      color: var(--text-2);
+      max-width: 680px;
+      margin: 0 auto 48px;
+      font-weight: 500;
+    }
+
+    /* Download Cards (Separate Android & Windows) */
+    .downloads-grid {
+      display: grid;
+      grid-template-columns: repeat(2, 1fr);
+      gap: 28px;
+      max-width: 860px;
+      margin: 0 auto 70px;
+    }
+    @media (max-width: 768px) {
+      .downloads-grid {
+        grid-template-columns: 1fr;
+      }
+      .hero h1 {
+        font-size: 38px;
+      }
+    }
+    .download-card {
+      background: var(--surface-glass);
+      backdrop-filter: blur(16px);
+      border: 1px solid var(--border);
+      border-radius: 28px;
+      padding: 36px 32px;
+      text-align: left;
+      box-shadow: var(--shadow-md);
+      transition: all 0.25s cubic-bezier(0.34, 1.56, 0.64, 1);
+      display: flex;
+      flex-direction: column;
+      position: relative;
+      overflow: hidden;
+    }
+    .download-card:hover {
+      transform: translateY(-4px);
+      box-shadow: var(--shadow-lg);
+      border-color: rgba(37, 99, 235, 0.4);
+    }
+    .card-top {
+      display: flex;
+      align-items: center;
+      justify-content: space-between;
+      margin-bottom: 20px;
+    }
+    .platform-icon {
+      width: 58px;
+      height: 58px;
+      border-radius: 18px;
+      display: flex;
+      align-items: center;
+      justify-content: center;
+      font-size: 28px;
+    }
+    .icon-android {
+      background: var(--mint-soft);
+      border: 1px solid rgba(16, 185, 129, 0.2);
+    }
+    .icon-windows {
+      background: var(--blue-soft);
+      border: 1px solid rgba(37, 99, 235, 0.2);
+    }
+    .version-tag {
+      font-size: 12px;
+      font-weight: 700;
+      background: var(--surface-muted);
+      border: 1px solid var(--border);
+      color: var(--text-2);
+      padding: 4px 12px;
+      border-radius: 20px;
+    }
+    .download-card h2 {
+      font-size: 24px;
+      font-weight: 800;
+      color: var(--text-1);
+      margin-bottom: 6px;
+    }
+    .download-card .card-sub {
+      font-size: 14px;
+      color: var(--text-3);
+      margin-bottom: 22px;
+      font-weight: 500;
+    }
+    .feature-list {
+      list-style: none;
+      margin-bottom: 30px;
+      flex: 1;
+    }
+    .feature-list li {
+      display: flex;
+      align-items: center;
+      gap: 10px;
+      font-size: 14px;
+      color: var(--text-2);
+      margin-bottom: 10px;
+      font-weight: 500;
+    }
+    .feature-check {
+      color: var(--mint);
+      font-weight: bold;
+    }
+    .btn-download {
+      display: flex;
+      align-items: center;
+      justify-content: center;
+      gap: 10px;
+      width: 100%;
+      padding: 16px 24px;
+      border-radius: 18px;
+      text-decoration: none;
+      font-size: 16px;
+      font-weight: 700;
+      color: white;
+      transition: all 0.2s cubic-bezier(0.34, 1.56, 0.64, 1);
+      box-shadow: 0 4px 14px var(--blue-glow);
+    }
+    .btn-android {
+      background: linear-gradient(135deg, #10B981, #059669);
+      box-shadow: 0 4px 14px rgba(16, 185, 129, 0.3);
+    }
+    .btn-android:hover {
+      box-shadow: 0 6px 20px rgba(16, 185, 129, 0.4);
+      transform: translateY(-2px);
+    }
+    .btn-windows {
+      background: linear-gradient(135deg, #3B82F6, var(--blue));
+    }
+    .btn-windows:hover {
+      box-shadow: 0 6px 20px var(--blue-glow);
+      transform: translateY(-2px);
+    }
+    .file-meta {
+      text-align: center;
+      margin-top: 10px;
+      font-size: 12px;
+      color: var(--text-3);
+    }
+
+    /* Radar Mockup Showcase */
+    .showcase {
+      background: var(--surface-glass);
+      backdrop-filter: blur(20px);
+      border: 1px solid var(--border);
+      border-radius: 32px;
+      padding: 48px 32px;
+      margin-bottom: 80px;
+      box-shadow: var(--shadow-lg);
+      text-align: center;
+    }
+    .showcase h3 {
+      font-size: 28px;
+      font-weight: 800;
+      margin-bottom: 12px;
+    }
+    .showcase p {
+      font-size: 16px;
+      color: var(--text-2);
+      max-width: 600px;
+      margin: 0 auto 36px;
+    }
+    .radar-visual {
+      position: relative;
+      width: 320px;
+      height: 320px;
+      margin: 0 auto;
+      border-radius: 50%;
+      background: radial-gradient(circle at center, rgba(37, 99, 235, 0.05) 0%, transparent 70%);
+      display: flex;
+      align-items: center;
+      justify-content: center;
+    }
+    .r-ring {
+      position: absolute;
+      border-radius: 50%;
+      border: 1px solid rgba(226, 232, 240, 0.9);
+      pointer-events: none;
+    }
+    .r-1 { width: 120px; height: 120px; }
+    .r-2 { width: 210px; height: 210px; }
+    .r-3 { width: 300px; height: 300px; border-color: rgba(37, 99, 235, 0.2); }
+    .r-sweep {
+      position: absolute;
+      width: 300px;
+      height: 300px;
+      border-radius: 50%;
+      background: conic-gradient(from 0deg, rgba(37, 99, 235, 0.15) 0deg, transparent 60deg, transparent 360deg);
+      animation: spin 5s linear infinite;
+    }
+    @keyframes spin {
+      from { transform: rotate(0deg); }
+      to { transform: rotate(360deg); }
+    }
+    .r-center {
+      width: 68px;
+      height: 68px;
+      border-radius: 50%;
+      background: white;
+      border: 2px solid var(--blue);
+      box-shadow: 0 4px 16px var(--blue-glow);
+      display: flex;
+      flex-direction: column;
+      align-items: center;
+      justify-content: center;
+      z-index: 2;
+    }
+    .r-peer {
+      position: absolute;
+      width: 58px;
+      height: 58px;
+      border-radius: 50%;
+      background: white;
+      border: 2px solid var(--border);
+      box-shadow: var(--shadow-md);
+      display: flex;
+      align-items: center;
+      justify-content: center;
+      font-size: 24px;
+      animation: float 3s ease-in-out infinite;
+    }
+    .peer-pc { top: 35px; right: 35px; animation-delay: 0.5s; }
+    .peer-phone { bottom: 40px; left: 40px; animation-delay: 1.2s; }
+    @keyframes float {
+      0%, 100% { transform: translateY(0); }
+      50% { transform: translateY(-6px); }
+    }
+
+    /* Steps Section */
+    .steps-section {
+      margin-bottom: 80px;
+      text-align: center;
+    }
+    .steps-section h2 {
+      font-size: 32px;
+      font-weight: 800;
+      margin-bottom: 40px;
+    }
+    .steps-grid {
+      display: grid;
+      grid-template-columns: repeat(3, 1fr);
+      gap: 24px;
+    }
+    @media (max-width: 768px) {
+      .steps-grid {
+        grid-template-columns: 1fr;
+      }
+    }
+    .step-card {
+      background: var(--surface-glass);
+      border: 1px solid var(--border);
+      border-radius: 24px;
+      padding: 32px 24px;
+      text-align: left;
+    }
+    .step-num {
+      width: 36px;
+      height: 36px;
+      border-radius: 12px;
+      background: var(--blue-soft);
+      color: var(--blue);
+      font-weight: 800;
+      display: flex;
+      align-items: center;
+      justify-content: center;
+      margin-bottom: 16px;
+    }
+    .step-card h4 {
+      font-size: 18px;
+      font-weight: 700;
+      margin-bottom: 8px;
+    }
+    .step-card p {
+      font-size: 14px;
+      color: var(--text-2);
+    }
+
+    /* Footer */
+    footer {
+      border-top: 1px solid var(--border);
+      padding: 40px 0;
+      display: flex;
+      align-items: center;
+      justify-content: space-between;
+      color: var(--text-3);
+      font-size: 14px;
+    }
+    footer a {
+      color: var(--blue);
+      text-decoration: none;
+      font-weight: 600;
+    }
+    @media (max-width: 600px) {
+      footer {
+        flex-direction: column;
+        gap: 16px;
+        text-align: center;
+      }
+    }
+  </style>
+</head>
+<body>
+  <div class="ambient-glows">
+    <div class="blob blob-1"></div>
+    <div class="blob blob-2"></div>
+    <div class="blob blob-3"></div>
+  </div>
+
+  <div class="container">
+    <header>
+      <a href="#" class="logo">
+        <div class="logo-icon">⚡</div>
+        <div class="logo-text">QuickDrop</div>
+      </a>
+      <div class="nav-links">
+        <a href="https://github.com/Efronj/quickdropw" class="nav-btn nav-btn-github" target="_blank">
+          <svg height="18" width="18" viewBox="0 0 16 16" fill="currentColor">
+            <path d="M8 0C3.58 0 0 3.58 0 8c0 3.54 2.29 6.53 5.47 7.59.4.07.55-.17.55-.38 0-.19-.01-.82-.01-1.49-2.01.37-2.53-.49-2.69-.94-.09-.23-.48-.94-.82-1.13-.28-.15-.68-.52-.01-.53.63-.01 1.08.58 1.23.82.72 1.21 1.87.87 2.33.66.07-.52.28-.87.51-1.07-1.78-.2-3.64-.89-3.64-3.95 0-.87.31-1.59.82-2.15-.08-.2-.36-1.02.08-2.12 0 0 .67-.21 2.2.82.64-.18 1.32-.27 2-.27.68 0 1.36.09 2 .27 1.53-1.04 2.2-.82 2.2-.82.44 1.1.16 1.92.08 2.12.51.56.82 1.27.82 2.15 0 3.07-1.87 3.75-3.65 3.95.29.25.54.73.54 1.48 0 1.07-.01 1.93-.01 2.2 0 .21.15.46.55.38A8.013 8.013 0 0016 8c0-4.42-3.58-8-8-8z"/>
+          </svg>
+          GitHub Repository
+        </a>
+      </div>
+    </header>
+
+    <section class="hero">
+      <div class="badge">
+        <span class="badge-dot"></span>
+        Fast Local Wi-Fi & Hotspot Sharing
+      </div>
+      <h1>Direct File Sharing for<br><span>Android & Windows PC</span></h1>
+      <p>Transfer photos, 4K videos, documents, and clipboard notes between your Android phone and Windows computer at full Wi-Fi speed. No cloud, no internet required.</p>
+
+      <!-- Separate Downloads Grid -->
+      <div class="downloads-grid">
+        <!-- Android Card -->
+        <div class="download-card">
+          <div class="card-top">
+            <div class="platform-icon icon-android">🤖</div>
+            <span class="version-tag">v2.0 • Android 10+</span>
+          </div>
+          <h2>QuickDrop for Android</h2>
+          <div class="card-sub">Fast sharing directly from your phone</div>
+          <ul class="feature-list">
+            <li><span class="feature-check">✓</span> Auto-sorts photos into Gallery & Downloads</li>
+            <li><span class="feature-check">✓</span> System Share Sheet integration</li>
+            <li><span class="feature-check">✓</span> Radar discovery for nearby PCs & phones</li>
+            <li><span class="feature-check">✓</span> Wi-Fi LAN + Nearby Connections fallback</li>
+          </ul>
+          <a href="QuickDrop.apk" class="btn-download btn-android" download>
+            <span>📥 Download APK</span>
+          </a>
+          <div class="file-meta">QuickDrop.apk • 21 MB • Signed release</div>
+        </div>
+
+        <!-- Windows Card -->
+        <div class="download-card">
+          <div class="card-top">
+            <div class="platform-icon icon-windows">💻</div>
+            <span class="version-tag">v2.0 • Windows 10/11</span>
+          </div>
+          <h2>QuickDrop for Windows PC</h2>
+          <div class="card-sub">Native desktop app with drag-and-drop</div>
+          <ul class="feature-list">
+            <li><span class="feature-check">✓</span> Drag-and-drop photos, 4K videos & folders</li>
+            <li><span class="feature-check">✓</span> 1-Click launcher (`QuickDrop.bat`)</li>
+            <li><span class="feature-check">✓</span> Auto-saves to `Downloads\QuickDrop`</li>
+            <li><span class="feature-check">✓</span> Built-in web portal & QR code for any browser</li>
+          </ul>
+          <a href="QuickDrop-Windows.zip" class="btn-download btn-windows" download>
+            <span>📥 Download for Windows</span>
+          </a>
+          <div class="file-meta">QuickDrop-Windows.zip • 21 KB • Portable</div>
+        </div>
+      </div>
+    </section>
+
+    <!-- Radar Showcase Visual -->
+    <section class="showcase">
+      <h3>AirDrop-Style Radar for All Your Devices</h3>
+      <p>Computers and phones appear on the interactive radar automatically when on the same Wi-Fi or mobile hotspot.</p>
+      
+      <div class="radar-visual">
+        <div class="r-ring r-3"></div>
+        <div class="r-ring r-2"></div>
+        <div class="r-ring r-1"></div>
+        <div class="r-sweep"></div>
+        <div class="r-center">
+          <span style="font-size: 22px;">⚡</span>
+          <span style="font-size: 10px; font-weight: 700; color: var(--blue);">Radar</span>
+        </div>
+        <div class="r-peer peer-pc" title="Windows PC">💻</div>
+        <div class="r-peer peer-phone" title="Android Phone">📱</div>
+      </div>
+    </section>
+
+    <!-- How It Works Steps -->
+    <section class="steps-section">
+      <h2>How It Works</h2>
+      <div class="steps-grid">
+        <div class="step-card">
+          <div class="step-num">1</div>
+          <h4>Connect to Wi-Fi</h4>
+          <p>Make sure your phone and PC are connected to the same Wi-Fi network (or PC is connected to your phone's hotspot).</p>
+        </div>
+        <div class="step-card">
+          <div class="step-num">2</div>
+          <h4>Open QuickDrop</h4>
+          <p>Launch QuickDrop on your phone and double-click QuickDrop.bat on your PC. Both devices will appear on each other's radar.</p>
+        </div>
+        <div class="step-card">
+          <div class="step-num">3</div>
+          <h4>Share Instantly</h4>
+          <p>Tap a device or drag-and-drop files to transfer at up to 100 MB/s. Photos and videos appear directly in your Gallery!</p>
+        </div>
+      </div>
+    </section>
+
+    <footer>
+      <div>QuickDrop • Built for fast local sharing. Open source under the MIT License.</div>
+      <div>
+        <a href="https://github.com/Efronj/quickdropw" target="_blank">GitHub Repository</a>
+      </div>
+    </footer>
+  </div>
+</body>
+</html>
