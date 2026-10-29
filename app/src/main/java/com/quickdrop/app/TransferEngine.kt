@@ -96,11 +96,51 @@ class TransferEngine(
         },
     )
 
+    // Internet / Anywhere WebRTC Engine (5G, 4G, Cross-network Wi-Fi)
+    private val webRtcBridge = WebRtcBridge(
+        app = app,
+        store = store,
+        scope = scope,
+        onPeerConnected = { peer ->
+            connected.value = peer
+            status.value = "Connected to " + peer.name + " across the internet 🌐"
+            updateCombinedPeers()
+            val queued = pending.value
+            if (queued.isNotEmpty()) {
+                pending.value = emptyList()
+                send(queued)
+            }
+        },
+        onPeerDisconnected = { peerId ->
+            if (connected.value?.id == peerId) {
+                connected.value = null
+                status.value = "Ready to share with phones & PCs"
+            }
+            updateCombinedPeers()
+        },
+        onTransferUpdate = { t ->
+            transfers.update { it + (t.id to t) }
+        },
+        onTransferFinished = { _, _, h ->
+            addHistory(h)
+        },
+        onEvent = { msg ->
+            events.tryEmit(msg)
+        },
+    )
+
+    val webRtcCode get() = webRtcBridge.shareCode
+
+    fun connectViaCode(code: String) {
+        webRtcBridge.connectToCode(code)
+    }
+
     // ───────────────────────── discovery / advertising ─────────────────────────
 
     fun start() {
         started = true
         lanEngine.start()
+        webRtcBridge.start()
 
         runCatching {
             client.stopAdvertising()
@@ -139,6 +179,7 @@ class TransferEngine(
     fun shutdown() {
         started = false
         lanEngine.stop()
+        webRtcBridge.stop()
         runCatching {
             client.stopAdvertising()
             client.stopDiscovery()
@@ -148,12 +189,14 @@ class TransferEngine(
 
     private fun updateCombinedPeers() {
         val list = mutableListOf<Peer>()
-        // LAN peers (Desktop & Android on local Wi-Fi)
+        val intPeer = webRtcBridge.connectedPeer.value
+        if (intPeer != null) {
+            list.add(intPeer)
+        }
         list.addAll(lanPeers)
-        // Nearby peers (P2P Wi-Fi Direct) - avoid duplicating by name
-        val lanNames = lanPeers.map { it.name }.toSet()
+        val existingNames = (lanPeers.map { it.name } + (intPeer?.name ?: "")).toSet()
         for (np in nearbyPeers.values) {
-            if (!lanNames.contains(np.name)) {
+            if (!existingNames.contains(np.name)) {
                 list.add(np)
             }
         }
@@ -176,6 +219,17 @@ class TransferEngine(
     // ───────────────────────── connection ─────────────────────────
 
     fun connect(peer: Peer) {
+        if (peer.isInternet) {
+            connected.value = peer
+            status.value = "Connected to " + peer.name + " across the internet 🌐"
+            val queued = pending.value
+            if (queued.isNotEmpty()) {
+                pending.value = emptyList()
+                send(queued)
+            }
+            return
+        }
+
         if (peer.isLan) {
             // For LAN peers (Desktop PC or phone), direct HTTP connection requires no handshake!
             connected.value = peer
@@ -236,8 +290,12 @@ class TransferEngine(
 
     fun disconnect() {
         val cur = connected.value
-        if (cur != null && !cur.isLan) {
-            runCatching { client.disconnectFromEndpoint(cur.id) }
+        if (cur != null) {
+            if (cur.isInternet) {
+                webRtcBridge.disconnect()
+            } else if (!cur.isLan) {
+                runCatching { client.disconnectFromEndpoint(cur.id) }
+            }
         }
         connected.value = null
         failActive()
@@ -309,6 +367,19 @@ class TransferEngine(
         if (peer == null) {
             pending.update { it + items }
             events.tryEmit("${items.size} item(s) ready! Tap a device to send.")
+            return
+        }
+
+        // WebRTC Internet transfer (5G, 4G, remote Wi-Fi)
+        if (peer.isInternet) {
+            val uris = items.filterIsInstance<Outgoing.Media>().map { it.uri }
+            if (uris.isNotEmpty()) {
+                webRtcBridge.sendUris(peer, uris)
+            }
+            val texts = items.filterIsInstance<Outgoing.Txt>().map { it.text }
+            for (t in texts) {
+                webRtcBridge.sendText(peer, t)
+            }
             return
         }
 

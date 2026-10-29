@@ -985,3 +985,57 @@ body {
   from { transform: translateY(20px); opacity: 0; }
   to { transform: translateY(0); opacity: 1; }
 }
+
+/* Anywhere / Internet Share Card */
+.internet-share-card {
+  margin-top: 14px;
+  background: var(--surface);
+  border: 1px solid var(--border);
+  border-radius: 16px;
+  padding: 12px 14px;
+  display: flex;
+  flex-direction: column;
+  gap: 10px;
+  box-shadow: var(--shadow-sm);
+}
+
+.internet-share-header {
+  display: flex;
+  align-items: center;
+  justify-content: space-between;
+}
+
+.code-badge {
+  font-family: monospace;
+  font-size: 13px;
+  font-weight: 700;
+  color: var(--blue);
+  background: var(--blue-soft);
+  padding: 4px 10px;
+  border-radius: 10px;
+  letter-spacing: 1px;
+}
+
+.internet-connect-row {
+  display: flex;
+  gap: 8px;
+}
+
+.internet-connect-row input {
+  flex: 1;
+  padding: 8px 12px;
+  border-radius: 12px;
+  border: 1px solid var(--border);
+  font-size: 13px;
+  font-weight: 600;
+  letter-spacing: 1.5px;
+  outline: none;
+  background: var(--surface-muted);
+  text-transform: uppercase;
+}
+
+.internet-connect-row input:focus {
+  border-color: var(--blue);
+  background: #fff;
+  box-shadow: 0 0 0 3px var(--blue-glow);
+}

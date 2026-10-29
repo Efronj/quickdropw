@@ -9,6 +9,7 @@ data class Peer(
     val ip: String = "",
     val port: Int = 52223,
     val isLan: Boolean = true,
+    val isInternet: Boolean = false,
 )
 
 data class Incoming(

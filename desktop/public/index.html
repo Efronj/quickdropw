@@ -47,7 +47,7 @@
       <!-- Left Column: Radar & Nearby Devices -->
       <section class="section-devices">
         <div class="section-header">
-          <h2>Nearby Devices</h2>
+          <h2>Radar Discovery</h2>
           <span class="peer-count" id="peer-count">0 found</span>
         </div>
 
@@ -67,7 +67,22 @@
         </div>
 
         <div class="radar-hint" id="radar-hint">
-          Looking for Android phones and PCs on the same Wi-Fi…
+          Looking for Android phones and PCs on local Wi-Fi or Internet…
+        </div>
+
+        <!-- Anywhere / Internet Sharing via 6-Digit Code -->
+        <div class="internet-share-card">
+          <div class="internet-share-header">
+            <div style="display: flex; align-items: center; gap: 8px;">
+              <span style="font-size: 16px;">🌐</span>
+              <span style="font-weight: 700; font-size: 13px;">Anywhere / 5G Share</span>
+            </div>
+            <span class="code-badge" id="my-share-code" title="Your 6-digit Internet Share code">Code: Loading…</span>
+          </div>
+          <div class="internet-connect-row">
+            <input type="text" id="input-peer-code" placeholder="Enter other device's code" maxlength="7">
+            <button class="btn btn-small btn-primary" id="btn-connect-code">Connect</button>
+          </div>
         </div>
 
         <!-- Selected Target Device Banner -->
@@ -228,6 +243,8 @@
   <!-- Toast Notification Container -->
   <div class="toast-container" id="toast-container"></div>
 
+  <!-- PeerJS WebRTC library for Internet/5G sharing -->
+  <script src="peerjs.min.js"></script>
   <!-- QR Code library for local rendering -->
   <script src="https://cdn.jsdelivr.net/npm/qrcodejs@1.0.0/qrcode.min.js"></script>
   <script src="app.js"></script>

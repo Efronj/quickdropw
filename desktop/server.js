@@ -365,6 +365,33 @@ const server = http.createServer((req, res) => {
     return;
   }
 
+  // Stream local file as blob for WebRTC sending
+  if (pathname === '/api/file-blob' && req.method === 'GET') {
+    const targetPath = parsedUrl.searchParams.get('path');
+    if (!targetPath || !fs.existsSync(targetPath)) {
+      res.writeHead(404, { 'Content-Type': 'text/plain' });
+      res.end('Not Found');
+      return;
+    }
+    try {
+      const stat = fs.statSync(targetPath);
+      if (!stat.isFile()) {
+        res.writeHead(400, { 'Content-Type': 'text/plain' });
+        res.end('Not a file');
+        return;
+      }
+      res.writeHead(200, {
+        'Content-Type': 'application/octet-stream',
+        'Content-Length': stat.size
+      });
+      fs.createReadStream(targetPath).pipe(res);
+    } catch (e) {
+      res.writeHead(500, { 'Content-Type': 'text/plain' });
+      res.end('Read error: ' + e.message);
+    }
+    return;
+  }
+
   // Windows native file dialog invocation
   if (pathname === '/api/pick-files' && req.method === 'POST') {
     const psScript = `

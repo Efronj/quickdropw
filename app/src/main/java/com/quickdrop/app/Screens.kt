@@ -1,5 +1,10 @@
 package com.quickdrop.app
 
+import androidx.compose.foundation.clickable
+import androidx.compose.foundation.text.BasicTextField
+import androidx.compose.ui.text.TextStyle
+import androidx.compose.ui.text.font.FontFamily
+
 import android.content.ClipData
 import android.content.ClipboardManager
 import android.content.Context
@@ -94,6 +99,7 @@ fun ShareScreen(vm: MainVM) {
     val transfers by e.transfers.collectAsStateWithLifecycle()
     val status by e.status.collectAsStateWithLifecycle()
     val pending by e.pending.collectAsStateWithLifecycle()
+    val webRtcCode by e.webRtcCode.collectAsStateWithLifecycle()
 
     var sheet by remember { mutableStateOf(false) }
     var textDialog by remember { mutableStateOf(false) }
@@ -882,5 +888,115 @@ private fun BatteryCard() {
         Text("🔋 Battery Status", fontSize = 16.sp, fontWeight = FontWeight.Bold, color = QD.Text1)
         Spacer(Modifier.height(4.dp))
         Text(info, fontSize = 13.sp, color = QD.Text2)
+    }
+}
+
+
+// ───────────────────────── Anywhere / 5G Share Card ─────────────────────────
+
+@Composable
+fun AnywhereShareCard(
+    shareCode: String,
+    onConnectCode: (String) -> Unit,
+) {
+    val ctx = LocalContext.current
+    var inputCode by remember { mutableStateOf("") }
+
+    GlassCard(
+        tint = QD.Surface,
+        borderColor = QD.Border,
+        elevation = 2.dp,
+    ) {
+        Column(Modifier.fillMaxWidth()) {
+            Row(
+                Modifier.fillMaxWidth(),
+                horizontalArrangement = Arrangement.SpaceBetween,
+                verticalAlignment = Alignment.CenterVertically,
+            ) {
+                Row(verticalAlignment = Alignment.CenterVertically) {
+                    Text("🌐", fontSize = 18.sp)
+                    Spacer(Modifier.width(8.dp))
+                    Column {
+                        Text(
+                            "Anywhere / 5G Share",
+                            fontWeight = FontWeight.Bold,
+                            fontSize = 14.sp,
+                            color = QD.Text1,
+                        )
+                        Text(
+                            "Connect across different Wi-Fi or mobile data",
+                            fontSize = 11.sp,
+                            color = QD.Text2,
+                        )
+                    }
+                }
+
+                if (shareCode.isNotEmpty()) {
+                    val formatted = if (shareCode.length == 6) "${shareCode.take(3)}-${shareCode.takeLast(3)}" else shareCode
+                    Box(
+                        Modifier
+                            .clip(RoundedCornerShape(8.dp))
+                            .background(QD.BlueSoft)
+                            .clickable {
+                                val cm = ctx.getSystemService(Context.CLIPBOARD_SERVICE) as ClipboardManager
+                                cm.setPrimaryClip(ClipData.newPlainText("QuickDrop Code", shareCode))
+                                toast(ctx, "Copied code $formatted ✓")
+                            }
+                            .padding(horizontal = 8.dp, vertical = 4.dp)
+                    ) {
+                        Text(
+                            "Code: $formatted",
+                            fontSize = 12.sp,
+                            fontWeight = FontWeight.Bold,
+                            color = QD.Blue,
+                            fontFamily = FontFamily.Monospace,
+                        )
+                    }
+                }
+            }
+
+            Spacer(Modifier.height(12.dp))
+
+            Row(
+                Modifier.fillMaxWidth(),
+                verticalAlignment = Alignment.CenterVertically,
+            ) {
+                BasicTextField(
+                    value = inputCode,
+                    onValueChange = { if (it.length <= 7) inputCode = it },
+                    singleLine = true,
+                    textStyle = TextStyle(
+                        color = QD.Text1,
+                        fontSize = 14.sp,
+                        fontWeight = FontWeight.SemiBold,
+                        fontFamily = FontFamily.Monospace,
+                    ),
+                    modifier = Modifier
+                        .weight(1f)
+                        .clip(RoundedCornerShape(12.dp))
+                        .background(QD.SurfaceMuted)
+                        .padding(horizontal = 12.dp, vertical = 10.dp),
+                    decorationBox = { innerTextField ->
+                        if (inputCode.isEmpty()) {
+                            Text(
+                                "Enter device's 6-digit code",
+                                color = QD.Text2.copy(alpha = 0.6f),
+                                fontSize = 13.sp,
+                            )
+                        }
+                        innerTextField()
+                    }
+                )
+
+                Spacer(Modifier.width(8.dp))
+
+                GlassButton("Connect") {
+                    if (inputCode.isNotBlank()) {
+                        onConnectCode(inputCode.trim())
+                        inputCode = ""
+                    }
+                }
+            }
+        }
     }
 }
