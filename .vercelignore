@@ -1,5 +1,10 @@
-/desktop
-/app
-/.gradle
-/gradle
-/.github
+desktop
+desktop/**
+app
+app/**
+gradle
+gradle/**
+.gradle
+.gradle/**
+.github
+.github/**
