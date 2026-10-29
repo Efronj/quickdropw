@@ -11,7 +11,7 @@ Fast, cross-platform file sharing between **Android** and **Desktop (Windows, ma
 | Platform | Download Link | Notes |
 | :--- | :--- | :--- |
 | 📱 **Android** | [**Download QuickDrop.apk**](https://github.com/Efronj/quickdropw/raw/main/QuickDrop.apk) | Android 10+, signed APK, auto-sorts to Gallery |
-| 💻 **Windows PC** | [**Download QuickDrop-Windows.zip**](https://github.com/Efronj/quickdropw/raw/main/QuickDrop-Windows.zip) | Portable zip, 1-click launch via `QuickDrop.bat` |
+| 💻 **Windows PC** | [**Download QuickDrop.exe**](https://github.com/Efronj/quickdropw/raw/main/QuickDrop.exe) | Single `.exe` file, no extraction needed |
 
 ---
 
