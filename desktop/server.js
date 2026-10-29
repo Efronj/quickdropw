@@ -96,63 +96,74 @@ function getLocalIPs() {
   return addresses;
 }
 
+const isServerless = !!process.env.VERCEL || !!process.env.AWS_LAMBDA_FUNCTION_NAME || !!process.env.NETLIFY;
+
 // ─────────────────────────────────────────────────────────────
 // UDP Discovery (Beacon Broadcast + Listener)
 // ─────────────────────────────────────────────────────────────
 
-const udpSocket = dgram.createSocket({ type: 'udp4', reuseAddr: true });
+let udpSocket = null;
 
-udpSocket.on('error', (err) => {
-  console.warn(`UDP socket warning: ${err.message}`);
-});
-
-udpSocket.on('message', (msg, rinfo) => {
+if (!isServerless) {
   try {
-    const str = msg.toString('utf8');
-    const data = JSON.parse(str);
+    udpSocket = dgram.createSocket({ type: 'udp4', reuseAddr: true });
 
-    // Ignore self broadcasts
-    if (data.id === config.id) return;
+    udpSocket.on('error', (err) => {
+      console.warn(`UDP socket warning: ${err.message}`);
+    });
 
-    if (data.type === 'quickdrop-ping' || data.type === 'quickdrop-pong') {
-      const peer = {
-        id: data.id,
-        name: data.name || 'Nearby Device',
-        deviceType: data.deviceType || 'mobile',
-        os: data.os || 'Unknown',
-        ip: rinfo.address,
-        port: data.port || DEFAULT_HTTP_PORT,
-        lastSeen: Date.now()
-      };
-      peers.set(peer.id, peer);
+    udpSocket.on('message', (msg, rinfo) => {
+      try {
+        const str = msg.toString('utf8');
+        const data = JSON.parse(str);
 
-      // If it was a ping, reply with pong immediately so sender discovers us instantly
-      if (data.type === 'quickdrop-ping') {
-        const pong = JSON.stringify({
-          type: 'quickdrop-pong',
-          id: config.id,
-          name: config.name,
-          deviceType: 'desktop',
-          os: 'Windows',
-          port: HTTP_PORT,
-          version: '2.0'
-        });
-        udpSocket.send(pong, rinfo.port, rinfo.address, () => {});
+        // Ignore self broadcasts
+        if (data.id === config.id) return;
+
+        if (data.type === 'quickdrop-ping' || data.type === 'quickdrop-pong') {
+          const peer = {
+            id: data.id,
+            name: data.name || 'Nearby Device',
+            deviceType: data.deviceType || 'mobile',
+            os: data.os || 'Unknown',
+            ip: rinfo.address,
+            port: data.port || DEFAULT_HTTP_PORT,
+            lastSeen: Date.now()
+          };
+          peers.set(peer.id, peer);
+
+          // If it was a ping, reply with pong immediately so sender discovers us instantly
+          if (data.type === 'quickdrop-ping' && udpSocket) {
+            const pong = JSON.stringify({
+              type: 'quickdrop-pong',
+              id: config.id,
+              name: config.name,
+              deviceType: 'desktop',
+              os: 'Windows',
+              port: HTTP_PORT,
+              version: '2.0'
+            });
+            udpSocket.send(pong, rinfo.port, rinfo.address, () => {});
+          }
+        }
+      } catch (e) {
+        // Non-JSON or foreign packet, ignore
       }
-    }
-  } catch (e) {
-    // Non-JSON or foreign packet, ignore
-  }
-});
+    });
 
-udpSocket.bind(UDP_PORT, () => {
-  try {
-    udpSocket.setBroadcast(true);
-  } catch (e) {}
-  console.log(`[QuickDrop] UDP Discovery active on port ${UDP_PORT}`);
-});
+    udpSocket.bind(UDP_PORT, () => {
+      try {
+        udpSocket.setBroadcast(true);
+      } catch (e) {}
+      console.log(`[QuickDrop] UDP Discovery active on port ${UDP_PORT}`);
+    });
+  } catch (e) {
+    console.warn('UDP socket init skipped:', e.message);
+  }
+}
 
 function broadcastPresence() {
+  if (!udpSocket || isServerless) return;
   const message = Buffer.from(JSON.stringify({
     type: 'quickdrop-ping',
     id: config.id,
@@ -183,7 +194,9 @@ function broadcastPresence() {
   }
 }
 
-setInterval(broadcastPresence, 2000);
+if (!isServerless) {
+  setInterval(broadcastPresence, 2000);
+}
 
 // ─────────────────────────────────────────────────────────────
 // Transfer Management & Speed Calculation
@@ -953,7 +966,7 @@ function startServer(port) {
 }
 
 function launchAppWindow(url) {
-  if (process.argv.includes('--no-window')) return;
+  if (isServerless || process.argv.includes('--no-window')) return;
 
   const edgePaths = [
     'C:\\Program Files (x86)\\Microsoft\\Edge\\Application\\msedge.exe',
@@ -990,4 +1003,9 @@ function launchAppWindow(url) {
   }
 }
 
-startServer(DEFAULT_HTTP_PORT);
+if (!isServerless) {
+  startServer(DEFAULT_HTTP_PORT);
+}
+
+module.exports = server;
+
