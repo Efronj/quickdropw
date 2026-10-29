@@ -20,6 +20,7 @@ import androidx.compose.foundation.layout.Box
 import androidx.compose.foundation.layout.BoxScope
 import androidx.compose.foundation.layout.Column
 import androidx.compose.foundation.layout.ColumnScope
+import androidx.compose.foundation.layout.Spacer
 import androidx.compose.foundation.layout.fillMaxHeight
 import androidx.compose.foundation.layout.fillMaxSize
 import androidx.compose.foundation.layout.fillMaxWidth
@@ -40,6 +41,7 @@ import androidx.compose.ui.Modifier
 import androidx.compose.ui.composed
 import androidx.compose.ui.draw.clip
 import androidx.compose.ui.draw.scale
+import androidx.compose.ui.draw.shadow
 import androidx.compose.ui.graphics.Brush
 import androidx.compose.ui.graphics.Color
 import androidx.compose.ui.graphics.SolidColor
@@ -57,14 +59,35 @@ import kotlin.math.cos
 import kotlin.math.sin
 
 object QD {
-    val Blue = Color(0xFF4F8CFF)
-    val Violet = Color(0xFF8B5CF6)
-    val Pink = Color(0xFFFF6BB5)
-    val Mint = Color(0xFF34E0B7)
-    val Text2 = Color(0xB3FFFFFF)
+    val BgStart = Color(0xFFF8FAFC)
+    val BgEnd = Color(0xFFF1F5F9)
+    val Surface = Color(0xFFFFFFFF)
+    val SurfaceMuted = Color(0xFFF8FAFC)
+    val Border = Color(0xFFE2E8F0)
+    val BorderStrong = Color(0xFFCBD5E1)
+
+    val Blue = Color(0xFF2563EB)
+    val BlueSoft = Color(0xFFEFF6FF)
+    val BlueGlow = Color(0x332563EB)
+
+    val Violet = Color(0xFF7C3AED)
+    val VioletSoft = Color(0xFFF5F3FF)
+
+    val Mint = Color(0xFF10B981)
+    val MintSoft = Color(0xFFECFDF5)
+
+    val Pink = Color(0xFFEC4899)
+    val PinkSoft = Color(0xFFFDF2F8)
+
+    val Amber = Color(0xFFF59E0B)
+    val AmberSoft = Color(0xFFFFFBEB)
+
+    val Text1 = Color(0xFF0F172A)
+    val Text2 = Color(0xFF475569)
+    val Text3 = Color(0xFF94A3B8)
 }
 
-// ───────────────────────── background ─────────────────────────
+// ───────────────────────── White Premium Background ─────────────────────────
 
 @Composable
 fun GlassBackground(content: @Composable BoxScope.() -> Unit) {
@@ -72,70 +95,73 @@ fun GlassBackground(content: @Composable BoxScope.() -> Unit) {
     val a by t.animateFloat(
         initialValue = 0f,
         targetValue = 1f,
-        animationSpec = infiniteRepeatable(tween(16000, easing = LinearEasing), RepeatMode.Reverse),
+        animationSpec = infiniteRepeatable(tween(14000, easing = LinearEasing), RepeatMode.Reverse),
         label = "a",
     )
     Box(
         Modifier
             .fillMaxSize()
-            .background(Brush.verticalGradient(listOf(Color(0xFF080B22), Color(0xFF160B33), Color(0xFF06182A))))
+            .background(Brush.verticalGradient(listOf(QD.BgStart, QD.BgEnd, Color(0xFFEAF0F8))))
     ) {
-        Blob(QD.Blue, 320.dp, (-100 + 130 * a).dp, 20.dp)
-        Blob(QD.Violet, 280.dp, (160 - 110 * a).dp, 250.dp)
-        Blob(QD.Pink, 240.dp, (-50 + 70 * a).dp, 540.dp)
-        Blob(QD.Mint, 220.dp, (190 - 90 * a).dp, 690.dp)
+        // Soft airy ambient color glows
+        AmbientBlob(QD.Blue.copy(alpha = 0.08f), 340.dp, (-80 + 90 * a).dp, 40.dp)
+        AmbientBlob(QD.Violet.copy(alpha = 0.07f), 300.dp, (150 - 80 * a).dp, 260.dp)
+        AmbientBlob(QD.Mint.copy(alpha = 0.07f), 280.dp, (-40 + 60 * a).dp, 560.dp)
+        AmbientBlob(QD.Pink.copy(alpha = 0.06f), 240.dp, (180 - 70 * a).dp, 720.dp)
         content()
     }
 }
 
 @Composable
-private fun Blob(c: Color, size: Dp, x: Dp, y: Dp) {
+private fun AmbientBlob(c: Color, size: Dp, x: Dp, y: Dp) {
     Box(
         Modifier
             .offset(x, y)
             .size(size)
-            .background(Brush.radialGradient(listOf(c.copy(alpha = 0.55f), Color.Transparent)), CircleShape)
+            .background(Brush.radialGradient(listOf(c, Color.Transparent)), CircleShape)
     )
 }
 
-// ───────────────────────── glass surface ─────────────────────────
+// ───────────────────────── Glass Surfaces & Controls ─────────────────────────
 
-fun Modifier.glass(radius: Dp = 28.dp, tint: Color = Color.White, strength: Float = 1f): Modifier {
+fun Modifier.glass(
+    radius: Dp = 24.dp,
+    tint: Color = QD.Surface,
+    borderColor: Color = QD.Border,
+    elevation: Dp = 2.dp,
+): Modifier {
     val shape = RoundedCornerShape(radius)
     return this
+        .then(if (elevation > 0.dp) Modifier.shadow(elevation, shape, spotColor = Color(0x1A0F172A), ambientColor = Color(0x0D0F172A)) else Modifier)
         .clip(shape)
-        .background(
-            Brush.linearGradient(
-                listOf(tint.copy(alpha = 0.22f * strength), tint.copy(alpha = 0.07f * strength))
-            ),
-            shape,
-        )
-        .border(
-            1.dp,
-            Brush.linearGradient(
-                listOf(Color.White.copy(alpha = 0.6f), Color.White.copy(alpha = 0.05f), Color.White.copy(alpha = 0.25f))
-            ),
-            shape,
-        )
+        .background(tint, shape)
+        .border(1.dp, borderColor, shape)
 }
 
 @Composable
 fun GlassCard(
     modifier: Modifier = Modifier,
-    tint: Color = Color.White,
+    tint: Color = QD.Surface,
+    borderColor: Color = QD.Border,
+    elevation: Dp = 2.dp,
     content: @Composable ColumnScope.() -> Unit,
 ) {
-    Column(modifier.fillMaxWidth().glass(tint = tint).padding(16.dp), content = content)
+    Column(
+        modifier
+            .fillMaxWidth()
+            .glass(24.dp, tint = tint, borderColor = borderColor, elevation = elevation)
+            .padding(18.dp),
+        content = content,
+    )
 }
 
-/** Springy press animation + a light haptic tick, like iOS controls. */
 fun Modifier.pressable(onClick: () -> Unit): Modifier = composed {
     val src = remember { MutableInteractionSource() }
     val pressed by src.collectIsPressedAsState()
     val haptic = LocalHapticFeedback.current
     val s by animateFloatAsState(
-        targetValue = if (pressed) 0.93f else 1f,
-        animationSpec = spring(dampingRatio = 0.45f, stiffness = Spring.StiffnessMedium),
+        targetValue = if (pressed) 0.96f else 1f,
+        animationSpec = spring(dampingRatio = 0.5f, stiffness = Spring.StiffnessMedium),
         label = "press",
     )
     this
@@ -147,16 +173,36 @@ fun Modifier.pressable(onClick: () -> Unit): Modifier = composed {
 }
 
 @Composable
-fun GlassButton(text: String, modifier: Modifier = Modifier, accent: Color? = null, onClick: () -> Unit) {
+fun GlassButton(
+    text: String,
+    modifier: Modifier = Modifier,
+    accent: Color? = null,
+    onClick: () -> Unit,
+) {
     val shape = RoundedCornerShape(22.dp)
-    var m = modifier.height(44.dp).pressable(onClick)
-    m = if (accent != null) {
-        m.clip(shape).background(Brush.horizontalGradient(listOf(accent, accent.copy(alpha = 0.65f))), shape)
+    val isAccent = accent != null
+    val base = modifier
+        .height(46.dp)
+        .pressable(onClick)
+
+    val styled = if (isAccent) {
+        base
+            .shadow(4.dp, shape, spotColor = accent.copy(alpha = 0.35f))
+            .clip(shape)
+            .background(Brush.horizontalGradient(listOf(accent, accent.copy(alpha = 0.88f))), shape)
     } else {
-        m.glass(22.dp)
+        base
+            .glass(22.dp, tint = QD.Surface, borderColor = QD.Border, elevation = 1.dp)
     }
-    Box(m.padding(horizontal = 18.dp), contentAlignment = Alignment.Center) {
-        Text(text, color = Color.White, fontWeight = FontWeight.SemiBold, fontSize = 15.sp, maxLines = 1)
+
+    Box(styled.padding(horizontal = 20.dp), contentAlignment = Alignment.Center) {
+        Text(
+            text,
+            color = if (isAccent) Color.White else QD.Text1,
+            fontWeight = FontWeight.SemiBold,
+            fontSize = 15.sp,
+            maxLines = 1,
+        )
     }
 }
 
@@ -168,14 +214,14 @@ fun GlassProgress(f: Float, modifier: Modifier = Modifier) {
             .fillMaxWidth()
             .height(8.dp)
             .clip(CircleShape)
-            .background(Color.White.copy(alpha = 0.14f))
+            .background(Color(0xFFE2E8F0))
     ) {
         Box(
             Modifier
                 .fillMaxHeight()
-                .fillMaxWidth(anim.coerceIn(0.03f, 1f))
+                .fillMaxWidth(anim.coerceIn(0.04f, 1f))
                 .clip(CircleShape)
-                .background(Brush.horizontalGradient(listOf(QD.Blue, QD.Violet, QD.Pink)))
+                .background(Brush.horizontalGradient(listOf(QD.Blue, QD.Violet, QD.Mint)))
         )
     }
 }
@@ -191,22 +237,24 @@ fun GlassField(
     Box(
         modifier
             .fillMaxWidth()
-            .glass(16.dp, strength = 0.8f)
-            .padding(horizontal = 14.dp, vertical = 12.dp)
+            .glass(18.dp, tint = QD.Surface, borderColor = QD.Border, elevation = 1.dp)
+            .padding(horizontal = 16.dp, vertical = 14.dp)
     ) {
-        if (value.isEmpty()) Text(hint, color = Color.White.copy(alpha = 0.4f), fontSize = 16.sp)
+        if (value.isEmpty()) {
+            Text(hint, color = QD.Text3, fontSize = 15.sp)
+        }
         BasicTextField(
             value = value,
             onValueChange = onChange,
             singleLine = singleLine,
-            textStyle = TextStyle(color = Color.White, fontSize = 16.sp),
-            cursorBrush = SolidColor(Color.White),
+            textStyle = TextStyle(color = QD.Text1, fontSize = 15.sp, fontWeight = FontWeight.Medium),
+            cursorBrush = SolidColor(QD.Blue),
             modifier = Modifier.fillMaxWidth(),
         )
     }
 }
 
-// ───────────────────────── the Send orb ─────────────────────────
+// ───────────────────────── The Send Orb (White Theme) ─────────────────────────
 
 @Composable
 fun SendOrb(onClick: () -> Unit) {
@@ -214,63 +262,52 @@ fun SendOrb(onClick: () -> Unit) {
     val pulse by t.animateFloat(
         initialValue = 0f,
         targetValue = 1f,
-        animationSpec = infiniteRepeatable(tween(2400, easing = FastOutSlowInEasing), RepeatMode.Restart),
+        animationSpec = infiniteRepeatable(tween(2200, easing = FastOutSlowInEasing), RepeatMode.Restart),
         label = "pulse",
     )
-    Box(Modifier.size(230.dp), contentAlignment = Alignment.Center) {
+    Box(Modifier.size(240.dp), contentAlignment = Alignment.Center) {
         Canvas(Modifier.fillMaxSize()) {
-            val base = size.minDimension * 0.27f
+            val base = size.minDimension * 0.28f
+            // Subtle blue glow ring
             drawCircle(
                 Brush.radialGradient(
-                    listOf(QD.Violet.copy(alpha = 0.55f), Color.Transparent),
+                    listOf(QD.Blue.copy(alpha = 0.15f), Color.Transparent),
                     center = center,
-                    radius = base * 2.0f,
+                    radius = base * 2.1f,
                 ),
-                radius = base * 2.0f,
+                radius = base * 2.1f,
                 center = center,
             )
             for (i in 0..1) {
                 val p = (pulse + i * 0.5f) % 1f
                 drawCircle(
-                    QD.Blue.copy(alpha = (1f - p) * 0.4f),
+                    QD.Blue.copy(alpha = (1f - p) * 0.35f),
                     radius = base + p * base * 0.95f,
                     center = center,
-                    style = Stroke(width = 3.dp.toPx()),
+                    style = Stroke(width = 2.5.dp.toPx()),
                 )
             }
         }
         Box(
             Modifier
-                .size(128.dp)
+                .size(136.dp)
                 .pressable(onClick)
+                .shadow(16.dp, CircleShape, spotColor = QD.Blue.copy(alpha = 0.4f))
                 .clip(CircleShape)
-                .background(Brush.linearGradient(listOf(Color(0xFF6EA8FF), QD.Violet, Color(0xFFB45CFF))))
-                .border(
-                    1.5.dp,
-                    Brush.linearGradient(listOf(Color.White.copy(alpha = 0.9f), Color.White.copy(alpha = 0.1f))),
-                    CircleShape,
-                ),
+                .background(Brush.linearGradient(listOf(Color(0xFF3B82F6), QD.Blue, Color(0xFF1D4ED8))))
+                .border(2.5.dp, Color.White.copy(alpha = 0.85f), CircleShape),
             contentAlignment = Alignment.Center,
         ) {
-            // glossy highlight, the "glass" look
-            Box(
-                Modifier
-                    .align(Alignment.TopCenter)
-                    .padding(top = 6.dp)
-                    .fillMaxWidth(0.72f)
-                    .height(48.dp)
-                    .clip(RoundedCornerShape(50))
-                    .background(Brush.verticalGradient(listOf(Color.White.copy(alpha = 0.55f), Color.Transparent)))
-            )
             Column(horizontalAlignment = Alignment.CenterHorizontally) {
-                Text("⬆", fontSize = 36.sp, color = Color.White)
-                Text("Send", fontSize = 19.sp, fontWeight = FontWeight.Bold, color = Color.White)
+                Text("📤", fontSize = 34.sp)
+                Spacer(Modifier.height(4.dp))
+                Text("Share", color = Color.White, fontWeight = FontWeight.Bold, fontSize = 16.sp)
             }
         }
     }
 }
 
-// ───────────────────────── radar ─────────────────────────
+// ───────────────────────── Radar (Luminous White Aesthetic) ─────────────────────────
 
 @Composable
 fun Radar(peers: List<Peer>, onPick: (Peer) -> Unit) {
@@ -278,21 +315,35 @@ fun Radar(peers: List<Peer>, onPick: (Peer) -> Unit) {
     val p by t.animateFloat(
         initialValue = 0f,
         targetValue = 1f,
-        animationSpec = infiniteRepeatable(tween(3200, easing = LinearEasing), RepeatMode.Restart),
+        animationSpec = infiniteRepeatable(tween(3400, easing = LinearEasing), RepeatMode.Restart),
         label = "p",
     )
-    Box(Modifier.fillMaxWidth().height(340.dp), contentAlignment = Alignment.Center) {
+    Box(Modifier.fillMaxWidth().height(330.dp), contentAlignment = Alignment.Center) {
         Canvas(Modifier.fillMaxSize()) {
-            val maxR = size.minDimension / 2f
+            val maxR = size.minDimension / 2f - 12.dp.toPx()
+            // Ambient concentric circles
             for (i in 0..2) {
                 val q = (p + i / 3f) % 1f
-                drawCircle(QD.Blue.copy(alpha = (1f - q) * 0.45f), radius = maxR * q, style = Stroke(2.dp.toPx()))
+                drawCircle(QD.Blue.copy(alpha = (1f - q) * 0.32f), radius = maxR * q, style = Stroke(2.dp.toPx()))
             }
-            drawCircle(Color.White.copy(alpha = 0.08f), radius = maxR * 0.66f, style = Stroke(1.dp.toPx()))
+            drawCircle(Color(0xFFE2E8F0), radius = maxR * 0.72f, style = Stroke(1.dp.toPx()))
+            drawCircle(Color(0xFFF1F5F9), radius = maxR * 0.4f, style = Stroke(1.dp.toPx()))
         }
-        Box(Modifier.size(72.dp).glass(36.dp, strength = 1.6f), contentAlignment = Alignment.Center) {
-            Text("You", color = Color.White, fontWeight = FontWeight.Bold)
+
+        // Center "You" Indicator
+        Box(
+            Modifier
+                .size(76.dp)
+                .glass(38.dp, tint = QD.Surface, borderColor = QD.Blue.copy(alpha = 0.5f), elevation = 4.dp),
+            contentAlignment = Alignment.Center,
+        ) {
+            Column(horizontalAlignment = Alignment.CenterHorizontally) {
+                Box(Modifier.size(8.dp).clip(CircleShape).background(QD.Mint))
+                Spacer(Modifier.height(4.dp))
+                Text("You", color = QD.Text1, fontWeight = FontWeight.Bold, fontSize = 14.sp)
+            }
         }
+
         val n = peers.size
         peers.forEachIndexed { i, peer ->
             val ang = 2.0 * Math.PI * i / n - Math.PI / 2
@@ -304,18 +355,42 @@ fun Radar(peers: List<Peer>, onPick: (Peer) -> Unit) {
 
 @Composable
 private fun PeerBubble(peer: Peer, modifier: Modifier, onPick: (Peer) -> Unit) {
+    val isDesktop = peer.deviceType == "desktop"
+    val icon = if (isDesktop) "💻" else "📱"
+
     Column(modifier.pressable { onPick(peer) }, horizontalAlignment = Alignment.CenterHorizontally) {
-        Box(Modifier.size(64.dp).glass(32.dp, tint = QD.Mint, strength = 1.8f), contentAlignment = Alignment.Center) {
-            Text(peer.name.take(1).uppercase(), fontSize = 24.sp, fontWeight = FontWeight.Bold, color = Color.White)
+        Box(
+            Modifier
+                .size(68.dp)
+                .glass(34.dp, tint = if (isDesktop) QD.BlueSoft else QD.Surface, borderColor = if (isDesktop) QD.Blue else QD.BorderStrong, elevation = 6.dp),
+            contentAlignment = Alignment.Center,
+        ) {
+            Column(horizontalAlignment = Alignment.CenterHorizontally) {
+                Text(icon, fontSize = 24.sp)
+                Text(
+                    peer.name.take(1).uppercase(),
+                    fontSize = 12.sp,
+                    fontWeight = FontWeight.Bold,
+                    color = QD.Blue,
+                )
+            }
         }
+        Spacer(Modifier.height(4.dp))
         Text(
             peer.name,
             fontSize = 12.sp,
-            color = Color.White,
+            fontWeight = FontWeight.SemiBold,
+            color = QD.Text1,
             maxLines = 1,
             overflow = TextOverflow.Ellipsis,
             textAlign = TextAlign.Center,
-            modifier = Modifier.width(84.dp),
+            modifier = Modifier.width(90.dp),
+        )
+        Text(
+            if (isDesktop) "PC · Tap to send" else "Phone · Tap to send",
+            fontSize = 10.sp,
+            color = QD.Blue,
+            fontWeight = FontWeight.Medium,
         )
     }
 }

@@ -2,11 +2,13 @@ package com.quickdrop.app
 
 import android.app.Application
 import android.content.ContentValues
+import android.media.MediaScannerConnection
 import android.net.Uri
 import android.os.Environment
 import android.os.SystemClock
 import android.provider.MediaStore
 import android.provider.OpenableColumns
+import android.webkit.MimeTypeMap
 import com.google.android.gms.nearby.Nearby
 import com.google.android.gms.nearby.connection.AdvertisingOptions
 import com.google.android.gms.nearby.connection.ConnectionInfo
@@ -20,6 +22,7 @@ import com.google.android.gms.nearby.connection.Payload
 import com.google.android.gms.nearby.connection.PayloadCallback
 import com.google.android.gms.nearby.connection.PayloadTransferUpdate
 import com.google.android.gms.nearby.connection.Strategy
+import kotlinx.coroutines.CompletableDeferred
 import kotlinx.coroutines.CoroutineScope
 import kotlinx.coroutines.Dispatchers
 import kotlinx.coroutines.delay
@@ -27,17 +30,13 @@ import kotlinx.coroutines.flow.MutableSharedFlow
 import kotlinx.coroutines.flow.MutableStateFlow
 import kotlinx.coroutines.flow.update
 import kotlinx.coroutines.launch
+import java.io.InputStream
 import java.util.concurrent.ConcurrentHashMap
 
 /**
- * Two-way file / text transfer built on Google's Nearby Connections API (the same
- * technology family Quick Share uses). With P2P_POINT_TO_POINT the library upgrades the
- * link to Wi-Fi Direct / hotspot automatically, which is what gives the high speed.
- *
- * Wire protocol (tiny):
- *   BYTES  "F|<payloadId>|<mime>|<size>|<name>"  -> describes the FILE payload that follows
- *   BYTES  "T|<text>"                             -> a text / clipboard message
- *   FILE   <content>                              -> the actual file (streamed, never copied first)
+ * Universal Transfer Engine:
+ * Supports high-speed Wi-Fi LAN transfers (with Desktop PCs & Android phones)
+ * + Google Nearby Connections P2P (Wi-Fi Direct between Android devices).
  */
 class TransferEngine(
     private val app: Application,
@@ -52,13 +51,18 @@ class TransferEngine(
     val connected = MutableStateFlow<Peer?>(null)
     val incoming = MutableStateFlow<Incoming?>(null)
     val transfers = MutableStateFlow<Map<Long, Transfer>>(emptyMap())
-    val status = MutableStateFlow("Getting ready…")
+    val status = MutableStateFlow("Ready to share with phones & PCs")
     val history = MutableStateFlow(store.history())
     val pending = MutableStateFlow<List<Outgoing>>(emptyList())
     val trusted = MutableStateFlow(store.trusted)
     val events = MutableSharedFlow<String>(extraBufferCapacity = 16)
 
     private var started = false
+    private val nearbyPeers = ConcurrentHashMap<String, Peer>()
+    private var lanPeers = emptyList<Peer>()
+    private var pendingLanDeferred: CompletableDeferred<Boolean>? = null
+
+    // Nearby Connections state
     private val names = HashMap<String, String>()
     private val meta = ConcurrentHashMap<Long, Meta>()
     private val fileIds = HashSet<Long>()
@@ -68,15 +72,46 @@ class TransferEngine(
     private val samples = HashMap<Long, Pair<Long, Long>>()
     private val finished = HashSet<Long>()
 
+    // Cross-platform LAN / Wi-Fi Engine
+    private val lanEngine = LanEngine(
+        app = app,
+        store = store,
+        scope = scope,
+        onPeersChanged = { list ->
+            lanPeers = list
+            updateCombinedPeers()
+        },
+        onIncomingRequest = { inc, deferred ->
+            pendingLanDeferred = deferred
+            incoming.value = inc
+        },
+        onTransferUpdate = { t ->
+            transfers.update { it + (t.id to t) }
+        },
+        onTransferFinished = { _, _, h ->
+            addHistory(h)
+        },
+        onEvent = { msg ->
+            events.tryEmit(msg)
+        },
+    )
+
     // ───────────────────────── discovery / advertising ─────────────────────────
 
     fun start() {
         started = true
-        client.stopAdvertising()
-        client.stopDiscovery()
-        peers.value = emptyList()
+        lanEngine.start()
+
+        runCatching {
+            client.stopAdvertising()
+            client.stopDiscovery()
+        }
+
+        nearbyPeers.clear()
+        updateCombinedPeers()
+
         if (connected.value != null) return
-        status.value = if (store.visible) "Looking for nearby devices…" else "Hidden — you can still find others"
+        status.value = if (store.visible) "Looking for nearby phones & PCs…" else "Hidden — you can still discover others"
 
         if (store.visible) {
             client.startAdvertising(
@@ -84,16 +119,16 @@ class TransferEngine(
                 service,
                 lifecycleCb,
                 AdvertisingOptions.Builder().setStrategy(strategy).build(),
-            ).addOnFailureListener { e ->
-                status.value = "Can't be seen: ${e.message ?: "turn on Wi-Fi & Bluetooth"}"
+            ).addOnFailureListener {
+                // Nearby failed, LAN will still work
             }
         }
         client.startDiscovery(
             service,
             discoveryCb,
             DiscoveryOptions.Builder().setStrategy(strategy).build(),
-        ).addOnFailureListener { e ->
-            status.value = "Can't search: ${e.message ?: "turn on Wi-Fi & Bluetooth"}"
+        ).addOnFailureListener {
+            // Nearby failed, LAN will still work
         }
     }
 
@@ -103,25 +138,57 @@ class TransferEngine(
 
     fun shutdown() {
         started = false
-        client.stopAdvertising()
-        client.stopDiscovery()
-        client.stopAllEndpoints()
+        lanEngine.stop()
+        runCatching {
+            client.stopAdvertising()
+            client.stopDiscovery()
+            client.stopAllEndpoints()
+        }
+    }
+
+    private fun updateCombinedPeers() {
+        val list = mutableListOf<Peer>()
+        // LAN peers (Desktop & Android on local Wi-Fi)
+        list.addAll(lanPeers)
+        // Nearby peers (P2P Wi-Fi Direct) - avoid duplicating by name
+        val lanNames = lanPeers.map { it.name }.toSet()
+        for (np in nearbyPeers.values) {
+            if (!lanNames.contains(np.name)) {
+                list.add(np)
+            }
+        }
+        peers.value = list
     }
 
     private val discoveryCb = object : EndpointDiscoveryCallback() {
         override fun onEndpointFound(endpointId: String, info: DiscoveredEndpointInfo) {
             names[endpointId] = info.endpointName
-            peers.update { list -> list.filter { it.id != endpointId } + Peer(endpointId, info.endpointName) }
+            nearbyPeers[endpointId] = Peer(endpointId, info.endpointName, deviceType = "mobile", isLan = false)
+            updateCombinedPeers()
         }
 
         override fun onEndpointLost(endpointId: String) {
-            peers.update { list -> list.filter { it.id != endpointId } }
+            nearbyPeers.remove(endpointId)
+            updateCombinedPeers()
         }
     }
 
     // ───────────────────────── connection ─────────────────────────
 
     fun connect(peer: Peer) {
+        if (peer.isLan) {
+            // For LAN peers (Desktop PC or phone), direct HTTP connection requires no handshake!
+            connected.value = peer
+            status.value = "Ready to send to ${peer.name}"
+            val queued = pending.value
+            if (queued.isNotEmpty()) {
+                pending.value = emptyList()
+                send(queued)
+            }
+            return
+        }
+
+        // Nearby Connections P2P
         status.value = "Connecting to ${peer.name}…"
         client.requestConnection(store.nickname, peer.id, lifecycleCb)
             .addOnFailureListener { e ->
@@ -137,12 +204,28 @@ class TransferEngine(
             trusted.value = store.trusted
         }
         incoming.value = null
+
+        val deferred = pendingLanDeferred
+        if (deferred != null) {
+            deferred.complete(true)
+            pendingLanDeferred = null
+            return
+        }
+
         client.acceptConnection(inc.id, payloadCb)
     }
 
     fun declineIncoming() {
         val inc = incoming.value ?: return
         incoming.value = null
+
+        val deferred = pendingLanDeferred
+        if (deferred != null) {
+            deferred.complete(false)
+            pendingLanDeferred = null
+            return
+        }
+
         client.rejectConnection(inc.id)
     }
 
@@ -152,7 +235,10 @@ class TransferEngine(
     }
 
     fun disconnect() {
-        connected.value?.let { client.disconnectFromEndpoint(it.id) }
+        val cur = connected.value
+        if (cur != null && !cur.isLan) {
+            runCatching { client.disconnectFromEndpoint(cur.id) }
+        }
         connected.value = null
         failActive()
         start()
@@ -167,8 +253,7 @@ class TransferEngine(
             names[endpointId] = info.endpointName
             val isTrusted = store.trusted.contains(info.endpointName)
             if (info.isIncomingConnection && !isTrusted) {
-                // Receiver confirms with the 4-digit code.
-                incoming.value = Incoming(endpointId, info.endpointName, info.authenticationDigits)
+                incoming.value = Incoming(endpointId, info.endpointName, info.authenticationDigits, isLan = false)
             } else {
                 if (!info.isIncomingConnection) {
                     status.value = "Waiting for ${info.endpointName} to accept · code ${info.authenticationDigits}"
@@ -181,7 +266,7 @@ class TransferEngine(
             incoming.value = null
             if (result.status.isSuccess) {
                 val n = names[endpointId] ?: "Device"
-                connected.value = Peer(endpointId, n)
+                connected.value = Peer(endpointId, n, deviceType = "mobile", isLan = false)
                 status.value = "Connected to $n"
                 client.stopAdvertising()
                 client.stopDiscovery()
@@ -207,10 +292,12 @@ class TransferEngine(
 
     // ───────────────────────── sending ─────────────────────────
 
-    /** Used by the Share sheet: send now if connected, otherwise hold until a device is picked. */
     fun queueOrSend(items: List<Outgoing>) = send(items)
 
-    fun sendUris(uris: List<Uri>) = send(uris.map { Outgoing.Media(it) })
+    fun sendUris(uris: List<Uri>) {
+        if (uris.isEmpty()) return
+        send(uris.map { Outgoing.Media(it) })
+    }
 
     fun sendText(text: String) {
         if (text.isNotBlank()) send(listOf(Outgoing.Txt(text)))
@@ -221,9 +308,24 @@ class TransferEngine(
         val peer = connected.value
         if (peer == null) {
             pending.update { it + items }
-            events.tryEmit("Pick a device — it will send as soon as you connect")
+            events.tryEmit("${items.size} item(s) ready! Tap a device to send.")
             return
         }
+
+        // LAN Wi-Fi transfer to Desktop or phone
+        if (peer.isLan) {
+            val uris = items.filterIsInstance<Outgoing.Media>().map { it.uri }
+            if (uris.isNotEmpty()) {
+                lanEngine.sendUrisToPeer(peer, uris)
+            }
+            val texts = items.filterIsInstance<Outgoing.Txt>().map { it.text }
+            for (t in texts) {
+                lanEngine.sendTextToPeer(peer, t)
+            }
+            return
+        }
+
+        // Nearby Connections P2P transfer
         for (item in items) {
             when (item) {
                 is Outgoing.Media -> pushMedia(peer, item.uri)
@@ -238,8 +340,9 @@ class TransferEngine(
 
     private fun pushMedia(peer: Peer, uri: Uri) {
         val r = app.contentResolver
-        var name = "file"
+        var name = ""
         var size = 0L
+
         runCatching {
             r.query(uri, arrayOf(OpenableColumns.DISPLAY_NAME, OpenableColumns.SIZE), null, null, null)?.use { c ->
                 if (c.moveToFirst()) {
@@ -248,18 +351,35 @@ class TransferEngine(
                 }
             }
         }
+
         val mime = r.getType(uri) ?: "application/octet-stream"
         val pfd = runCatching { r.openFileDescriptor(uri, "r") }.getOrNull()
         if (pfd == null) {
-            events.tryEmit("Can't read $name")
+            events.tryEmit("Can't read selected file")
             return
         }
+
+        if (size <= 0L) {
+            size = pfd.statSize.coerceAtLeast(0L)
+        }
+
+        if (name.isBlank() || name == "file") {
+            val ext = MimeTypeMap.getSingleton().getExtensionFromMimeType(mime) ?: "bin"
+            val prefix = when {
+                mime.startsWith("image/") -> "Photo"
+                mime.startsWith("video/") -> "Video"
+                else -> "File"
+            }
+            name = "${prefix}_${System.currentTimeMillis() % 100000}.$ext"
+        }
+
         val payload = Payload.fromFile(pfd)
         val pid = payload.id
         fileIds.add(pid)
         outgoingIds.add(pid)
         outUris[pid] = uri
         meta[pid] = Meta(name, mime, size)
+
         client.sendPayload(peer.id, Payload.fromBytes("F|$pid|$mime|$size|$name".toByteArray(Charsets.UTF_8)))
         client.sendPayload(peer.id, payload)
         putTransfer(Transfer(pid, name, size, 0, true, 0.0, 0))
@@ -274,18 +394,18 @@ class TransferEngine(
         client.sendPayload(peer.id, Payload.fromBytes(bytes))
         addHistory(
             HistoryItem(
-                "t${System.nanoTime()}", "Text", text.length.toLong(), "text/plain",
+                "t${System.nanoTime()}", "Text Note", text.length.toLong(), "text/plain",
                 true, peer.name, System.currentTimeMillis(), null, text,
             )
         )
-        events.tryEmit("Text sent ✓")
+        events.tryEmit("Note sent ✓")
     }
 
     fun cancel(pid: Long) {
         client.cancelPayload(pid)
     }
 
-    // ───────────────────────── receiving ─────────────────────────
+    // ───────────────────────── receiving (Nearby Connections) ─────────────────────────
 
     private val payloadCb = object : PayloadCallback() {
         override fun onPayloadReceived(endpointId: String, payload: Payload) {
@@ -295,7 +415,8 @@ class TransferEngine(
                     val pid = payload.id
                     fileIds.add(pid)
                     inPayloads[pid] = payload
-                    putTransfer(Transfer(pid, meta[pid]?.name ?: "Incoming file", 0, 0, false, 0.0, 0))
+                    val m = meta[pid]
+                    putTransfer(Transfer(pid, m?.name ?: "Incoming media…", m?.size ?: 0L, 0, false, 0.0, 0))
                 }
             }
         }
@@ -321,13 +442,14 @@ class TransferEngine(
                 else -> 0
             }
             val name = meta[pid]?.name ?: if (out) "Sending…" else "Incoming file"
-            val done = if (state == 1) u.totalBytes else u.bytesTransferred
-            putTransfer(Transfer(pid, name, u.totalBytes, done, out, speed, state))
+            val total = if (u.totalBytes > 0) u.totalBytes else (meta[pid]?.size ?: 0L)
+            val done = if (state == 1) total else u.bytesTransferred
+            putTransfer(Transfer(pid, name, total, done, out, speed, state))
 
             if (state == 1) finish(pid, out)
             if (state != 0) {
                 scope.launch {
-                    delay(4000)
+                    delay(3000)
                     transfers.update { it - pid }
                 }
             }
@@ -342,18 +464,25 @@ class TransferEngine(
                 val p = s.split("|", limit = 5)
                 if (p.size == 5) {
                     val id = p[1].toLongOrNull()
-                    if (id != null) meta[id] = Meta(p[4], p[2], p[3].toLongOrNull() ?: 0L)
+                    if (id != null) {
+                        val m = Meta(p[4], p[2], p[3].toLongOrNull() ?: 0L)
+                        meta[id] = m
+                        transfers.update { map ->
+                            val current = map[id]
+                            if (current != null) map + (id to current.copy(name = m.name, total = m.size)) else map
+                        }
+                    }
                 }
             }
             s.startsWith("T|") -> {
                 val txt = s.substring(2)
                 addHistory(
                     HistoryItem(
-                        "t${System.nanoTime()}", "Text", txt.length.toLong(), "text/plain",
+                        "t${System.nanoTime()}", "Text Note", txt.length.toLong(), "text/plain",
                         false, connected.value?.name ?: "Device", System.currentTimeMillis(), null, txt,
                     )
                 )
-                events.tryEmit("Text received — open History to copy it")
+                events.tryEmit("Note received — open History to copy")
             }
         }
     }
@@ -365,7 +494,7 @@ class TransferEngine(
             val m = meta[pid]
             addHistory(
                 HistoryItem(
-                    "o$pid", m?.name ?: "file", m?.size ?: 0L, m?.mime ?: "",
+                    "o$pid", m?.name ?: "Media", m?.size ?: 0L, m?.mime ?: "",
                     true, peerName, System.currentTimeMillis(), outUris[pid]?.toString(), null,
                 )
             )
@@ -373,7 +502,6 @@ class TransferEngine(
         } else {
             val payload = inPayloads.remove(pid) ?: return
             scope.launch(Dispatchers.IO) {
-                // The description message normally lands first; wait briefly if it hasn't yet.
                 var m = meta[pid]
                 var tries = 0
                 while (m == null && tries < 30) {
@@ -386,38 +514,76 @@ class TransferEngine(
         }
     }
 
-    /** Copies the received file into Pictures / Movies / Downloads → QuickDrop, sorted by type. */
     private fun save(pid: Long, payload: Payload, m: Meta?, peerName: String) {
         try {
-            val src = payload.asFile()?.asUri() ?: throw IllegalStateException("file missing")
-            val name = m?.name ?: "file_$pid"
+            val pFile = payload.asFile() ?: throw IllegalStateException("Payload file missing")
+            val r = app.contentResolver
+
+            val inStream: InputStream = when {
+                pFile.asUri() != null -> r.openInputStream(pFile.asUri()!!)
+                pFile.asJavaFile() != null -> java.io.FileInputStream(pFile.asJavaFile()!!)
+                pFile.asParcelFileDescriptor() != null -> {
+                    android.os.ParcelFileDescriptor.AutoCloseInputStream(pFile.asParcelFileDescriptor()!!)
+                }
+                else -> null
+            } ?: throw IllegalStateException("Cannot read received payload")
+
             val mime = m?.mime ?: "application/octet-stream"
+            var name = m?.name ?: "QuickDrop_$pid"
+
+            if (!name.contains(".")) {
+                val ext = MimeTypeMap.getSingleton().getExtensionFromMimeType(mime)
+                if (!ext.isNullOrBlank()) {
+                    name = "$name.$ext"
+                }
+            }
+
             val (collection, dir) = when {
                 mime.startsWith("image/") -> MediaStore.Images.Media.EXTERNAL_CONTENT_URI to Environment.DIRECTORY_PICTURES
                 mime.startsWith("video/") -> MediaStore.Video.Media.EXTERNAL_CONTENT_URI to Environment.DIRECTORY_MOVIES
                 else -> MediaStore.Downloads.EXTERNAL_CONTENT_URI to Environment.DIRECTORY_DOWNLOADS
             }
-            val r = app.contentResolver
+
             val cv = ContentValues().apply {
                 put(MediaStore.MediaColumns.DISPLAY_NAME, name)
                 put(MediaStore.MediaColumns.MIME_TYPE, mime)
                 put(MediaStore.MediaColumns.RELATIVE_PATH, "$dir/QuickDrop")
                 put(MediaStore.MediaColumns.IS_PENDING, 1)
             }
-            val dest = r.insert(collection, cv) ?: throw IllegalStateException("can't create file")
-            r.openOutputStream(dest)?.use { o ->
-                r.openInputStream(src)?.use { i -> i.copyTo(o, 256 * 1024) }
+
+            val dest = r.insert(collection, cv) ?: throw IllegalStateException("Cannot insert into MediaStore")
+
+            inStream.use { input ->
+                r.openOutputStream(dest)?.use { output ->
+                    input.copyTo(output, 256 * 1024)
+                }
             }
+
             val done = ContentValues().apply { put(MediaStore.MediaColumns.IS_PENDING, 0) }
             r.update(dest, done, null, null)
-            runCatching { r.delete(src, null, null) }
+
+            runCatching {
+                MediaScannerConnection.scanFile(app, arrayOf(dest.toString()), arrayOf(mime), null)
+            }
+
+            runCatching {
+                if (pFile.asUri() != null) r.delete(pFile.asUri()!!, null, null)
+                else pFile.asJavaFile()?.delete()
+            }
+
             addHistory(
                 HistoryItem(
                     "i$pid", name, m?.size ?: 0L, mime,
                     false, peerName, System.currentTimeMillis(), dest.toString(), null,
                 )
             )
-            events.tryEmit("Saved $name")
+
+            val typeLabel = when {
+                mime.startsWith("image/") -> "Photo"
+                mime.startsWith("video/") -> "Video"
+                else -> "File"
+            }
+            events.tryEmit("Saved $typeLabel: $name")
         } catch (e: Exception) {
             events.tryEmit("Couldn't save file: ${e.message}")
         }

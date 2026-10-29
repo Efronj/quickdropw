@@ -10,24 +10,26 @@ import androidx.activity.compose.setContent
 import androidx.activity.enableEdgeToEdge
 import androidx.activity.result.contract.ActivityResultContracts
 import androidx.activity.viewModels
+import androidx.compose.foundation.background
+import androidx.compose.foundation.clickable
 import androidx.compose.foundation.layout.Arrangement
 import androidx.compose.foundation.layout.Box
 import androidx.compose.foundation.layout.Column
 import androidx.compose.foundation.layout.Row
+import androidx.compose.foundation.layout.Spacer
 import androidx.compose.foundation.layout.fillMaxSize
 import androidx.compose.foundation.layout.fillMaxWidth
+import androidx.compose.foundation.layout.height
 import androidx.compose.foundation.layout.navigationBarsPadding
 import androidx.compose.foundation.layout.padding
+import androidx.compose.foundation.layout.size
 import androidx.compose.foundation.layout.statusBarsPadding
+import androidx.compose.foundation.shape.CircleShape
 import androidx.compose.foundation.shape.RoundedCornerShape
-import androidx.compose.foundation.background
-import androidx.compose.foundation.layout.Spacer
-import androidx.compose.foundation.layout.height
-import androidx.compose.foundation.clickable
 import androidx.compose.material3.MaterialTheme
 import androidx.compose.material3.Surface
 import androidx.compose.material3.Text
-import androidx.compose.material3.darkColorScheme
+import androidx.compose.material3.lightColorScheme
 import androidx.compose.runtime.Composable
 import androidx.compose.runtime.LaunchedEffect
 import androidx.compose.runtime.getValue
@@ -45,6 +47,7 @@ import androidx.compose.ui.text.style.TextAlign
 import androidx.compose.ui.unit.dp
 import androidx.compose.ui.unit.sp
 import androidx.core.content.IntentCompat
+import androidx.core.view.WindowCompat
 
 class MainActivity : ComponentActivity() {
     private val vm: MainVM by viewModels()
@@ -52,6 +55,10 @@ class MainActivity : ComponentActivity() {
     override fun onCreate(savedInstanceState: Bundle?) {
         super.onCreate(savedInstanceState)
         enableEdgeToEdge()
+        WindowCompat.getInsetsController(window, window.decorView).apply {
+            isAppearanceLightStatusBars = true
+            isAppearanceLightNavigationBars = true
+        }
         if (savedInstanceState == null) handleShare(intent)
         setContent { App(vm) }
     }
@@ -61,7 +68,7 @@ class MainActivity : ComponentActivity() {
         handleShare(intent)
     }
 
-    /** Receives files / text shared from any app's Share sheet. */
+    /** Receives files / photos / videos / text shared from external apps. */
     private fun handleShare(i: Intent?) {
         if (i == null) return
         val items = ArrayList<Outgoing>()
@@ -79,7 +86,7 @@ class MainActivity : ComponentActivity() {
         }
         if (items.isNotEmpty()) {
             vm.engine.queueOrSend(items)
-            Toast.makeText(this, "Pick a device in QuickDrop to send", Toast.LENGTH_SHORT).show()
+            Toast.makeText(this, "${items.size} item(s) queued · Tap a device to send", Toast.LENGTH_SHORT).show()
         }
     }
 }
@@ -94,8 +101,17 @@ fun App(vm: MainVM) {
     }
     LaunchedEffect(granted) { if (granted) vm.engine.start() }
 
-    MaterialTheme(colorScheme = darkColorScheme()) {
-        Surface(color = Color.Transparent, contentColor = Color.White) {
+    MaterialTheme(
+        colorScheme = lightColorScheme(
+            primary = QD.Blue,
+            background = QD.BgStart,
+            surface = QD.Surface,
+            onPrimary = Color.White,
+            onBackground = QD.Text1,
+            onSurface = QD.Text1,
+        )
+    ) {
+        Surface(color = Color.Transparent, contentColor = QD.Text1) {
             GlassBackground {
                 if (granted) MainShell(vm) else PermissionScreen { launcher.launch(perms) }
             }
@@ -106,26 +122,37 @@ fun App(vm: MainVM) {
 @Composable
 private fun PermissionScreen(onAllow: () -> Unit) {
     Box(Modifier.fillMaxSize().padding(28.dp), contentAlignment = Alignment.Center) {
-        GlassCard {
-            Text("📡", fontSize = 44.sp, modifier = Modifier.fillMaxWidth(), textAlign = TextAlign.Center)
-            Spacer(Modifier.height(10.dp))
+        GlassCard(elevation = 8.dp) {
+            Box(
+                Modifier
+                    .size(72.dp)
+                    .clip(CircleShape)
+                    .background(QD.BlueSoft)
+                    .align(Alignment.CenterHorizontally),
+                contentAlignment = Alignment.Center,
+            ) {
+                Text("📡", fontSize = 36.sp)
+            }
+            Spacer(Modifier.height(16.dp))
             Text(
-                "Allow nearby access",
+                "Nearby Transfer",
                 fontSize = 24.sp,
                 fontWeight = FontWeight.Bold,
-                color = Color.White,
+                color = QD.Text1,
                 modifier = Modifier.fillMaxWidth(),
                 textAlign = TextAlign.Center,
             )
             Spacer(Modifier.height(8.dp))
             Text(
-                "QuickDrop uses Bluetooth and Wi-Fi to find phones around you and move files at full speed. Nothing goes through the internet.",
+                "QuickDrop connects directly to nearby phones using Wi-Fi Direct and Bluetooth. Transfer photos, videos, and large files at maximum speed with zero internet data.",
                 color = QD.Text2,
+                fontSize = 14.sp,
+                lineHeight = 20.sp,
                 textAlign = TextAlign.Center,
                 modifier = Modifier.fillMaxWidth(),
             )
-            Spacer(Modifier.height(18.dp))
-            GlassButton("Allow", Modifier.fillMaxWidth(), accent = QD.Blue) { onAllow() }
+            Spacer(Modifier.height(24.dp))
+            GlassButton("Enable Nearby Sharing", Modifier.fillMaxWidth(), accent = QD.Blue) { onAllow() }
         }
     }
 }
@@ -153,7 +180,7 @@ private fun MainShell(vm: MainVM) {
             Modifier
                 .align(Alignment.BottomCenter)
                 .navigationBarsPadding()
-                .padding(16.dp),
+                .padding(horizontal = 20.dp, vertical = 14.dp),
         )
         IncomingDialog(vm)
     }
@@ -161,9 +188,12 @@ private fun MainShell(vm: MainVM) {
 
 @Composable
 private fun GlassNav(tab: Int, onTab: (Int) -> Unit, modifier: Modifier) {
-    val items = listOf("📡" to "Share", "🕘" to "History", "🧰" to "Tools")
+    val items = listOf("⚡" to "Share", "🕒" to "History", "🛠️" to "Tools")
     Row(
-        modifier.fillMaxWidth().glass(34.dp, strength = 1.5f).padding(6.dp),
+        modifier
+            .fillMaxWidth()
+            .glass(32.dp, tint = QD.Surface.copy(alpha = 0.95f), borderColor = QD.Border, elevation = 10.dp)
+            .padding(6.dp),
         horizontalArrangement = Arrangement.SpaceBetween,
     ) {
         items.forEachIndexed { i, pair ->
@@ -172,17 +202,18 @@ private fun GlassNav(tab: Int, onTab: (Int) -> Unit, modifier: Modifier) {
                 Modifier
                     .weight(1f)
                     .pressable { onTab(i) }
-                    .clip(RoundedCornerShape(28.dp))
-                    .background(if (sel) Color.White.copy(alpha = 0.22f) else Color.Transparent)
+                    .clip(RoundedCornerShape(26.dp))
+                    .background(if (sel) QD.BlueSoft else Color.Transparent)
                     .padding(vertical = 8.dp),
                 horizontalAlignment = Alignment.CenterHorizontally,
             ) {
                 Text(pair.first, fontSize = 20.sp)
+                Spacer(Modifier.height(2.dp))
                 Text(
                     pair.second,
-                    fontSize = 11.sp,
-                    fontWeight = FontWeight.SemiBold,
-                    color = if (sel) Color.White else QD.Text2,
+                    fontSize = 12.sp,
+                    fontWeight = if (sel) FontWeight.Bold else FontWeight.SemiBold,
+                    color = if (sel) QD.Blue else QD.Text2,
                 )
             }
         }

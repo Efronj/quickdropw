@@ -1,44 +1,65 @@
 # QuickDrop
 
-Fast two-way file sharing for Android with an iOS-style glass UI. Built with Kotlin + Jetpack Compose on
-Google's **Nearby Connections** API (the same family of tech as Quick Share): devices find each other over
-Bluetooth, then the link upgrades to Wi-Fi Direct / hotspot for full-speed transfers. No internet needed.
+Fast, cross-platform file sharing between **Android** and **Desktop (Windows, macOS, Linux)** with an iOS-style glass UI. No cloud or internet required — transfers happen directly over your local Wi-Fi or mobile hotspot at maximum speeds (up to 50–100+ MB/s).
 
-## Get the APK (no Android Studio needed)
+---
 
-1. Create a free GitHub account and a **new empty repository**.
-2. Upload everything in this folder (keep the `.github` folder) and commit to the `main` branch.
-3. Open the **Actions** tab → **Build APK** → wait ~5 minutes for the green tick
-   (or press **Run workflow**).
-4. Open the finished run → download the **QuickDrop-apk** artifact → unzip → `app-release.apk`.
-5. Copy the APK to your phone and install it (allow "Install unknown apps" when asked).
-   Install it on **both** phones you want to transfer between.
+## 📱 Android App
 
-### Or build with Android Studio
-Open this folder in Android Studio (Ladybug or newer) → **Build → Build APK(s)**.
-Command line: `./gradlew assembleRelease` (needs the Android SDK and JDK 17).
+### Get the APK
+- **Ready-to-install APK:** `QuickDrop.apk` in the root of this folder. Copy it to your phone and install it (allow *"Install unknown apps"* if prompted).
+- **Or build via GitHub Actions:** Push to GitHub → Actions tab → **Build APK** → download `QuickDrop-apk`.
+- **Or build with Android Studio / CLI:** `./gradlew assembleRelease`
 
-## Using it
-- Open QuickDrop on both phones and allow the permissions.
-- Tap the other phone's bubble on the radar. The receiver confirms the matching 4-digit code.
-- Tap the big **Send** orb → photos & videos, files, clipboard or text. Both sides can send at any time.
-- From any app (Gallery, Files…) use **Share → QuickDrop** and pick the device.
-- Received files are sorted into `Pictures/QuickDrop`, `Movies/QuickDrop`, `Download/QuickDrop`.
+### Android Features
+1. **Two-Way Sharing with Desktop & Phones:** Send and receive photos, 4K videos, APKs, docs, and notes directly with Windows/Mac/Linux PCs and other Android phones.
+2. **Instant Local Discovery:** Automatically finds nearby devices using UDP broadcast on your local Wi-Fi or hotspot. Radar displays 💻 for computers and 📱 for phones.
+3. **Gallery Auto-Integration:** Received photos are saved to `Pictures/QuickDrop` and videos to `Movies/QuickDrop`, immediately indexed into Google Photos & Gallery.
+4. **System Share Sheet:** Appears in every Android app's **Share** menu (Files, Gallery, YouTube, browser links).
+5. **Real-Time Progress & Speed:** Live progress percentage, transfer speed (MB/s), and time remaining.
+6. **Trusted Devices:** Auto-accept connections from devices you trust.
 
-## Features
-1. Two-way transfer of photos, videos and any file, streamed at Wi-Fi Direct speed
-2. Live speed and time-left on every transfer, with cancel
-3. Appears in every app's **Share** sheet
-4. Send text, links or your clipboard instantly
-5. Transfer history — tap to open files or copy received text
-6. Trusted devices — auto-accept connections from phones you choose
-7. Received files auto-sorted into Pictures / Movies / Downloads
-8. Storage meter
-9. Large file finder — find the biggest photos/videos, then send or open them
-10. QR code maker, flashlight toggle and battery check
+---
 
-## Notes
-- Android 10 or newer. Wi-Fi and Bluetooth must be on (Android 11 and older also need Location on).
-- Trusted devices are matched by device name, so only trust names you recognise.
-- The release APK is signed with the standard debug key so it installs directly; for the Play Store
-  you would add your own signing key.
+## 💻 Desktop App (Windows / macOS / Linux)
+
+### Instant 1-Click Launch (Windows)
+Double-click **`QuickDrop-Desktop.bat`** in the root folder!
+It starts the server and opens the native QuickDrop desktop window.
+
+### Command Line Launch
+```bash
+cd desktop
+node server.js
+```
+*(Or `npm start`)*
+
+### Desktop Features
+1. **Standalone App Window:** Runs as a frameless native desktop window with hardware acceleration and zero clutter.
+2. **Animated Radar:** Discovers nearby Android phones and other PCs on the network in real-time.
+3. **Drag & Drop:** Simply drag photos, 4K videos, or folders anywhere onto the window to send.
+4. **Native File Browser:** Click *Browse Files* to open the Windows multi-file selector.
+5. **Instant Clipboard & Notes:** Click *Send Clipboard* or *Write Note* to send links or text directly to your phone.
+6. **Downloads Folder:** Files are saved directly to `Downloads\QuickDrop`. Click **📁 Open Folder** to view them in Windows Explorer.
+7. **Incoming Transfers:** Auto-accepts files from your devices, or prompts with Accept/Decline.
+8. **Web Portal & QR Code:** Includes a built-in web portal. Any device without the app installed can scan the QR code to upload or download files via their browser.
+
+---
+
+## 🚀 How to Share Between Android & Desktop
+
+1. Connect both your phone and PC to the **same Wi-Fi network** (or connect your PC to your phone's Wi-Fi Hotspot).
+2. Open **QuickDrop Desktop** on your computer (`QuickDrop-Desktop.bat`).
+3. Open **QuickDrop** on your Android phone.
+4. Each device will immediately appear on the other's radar:
+   - **From Android to PC:** Tap your PC's bubble (💻) on the radar, select photos or files, and tap Send. They will appear in your PC's `Downloads\QuickDrop` folder.
+   - **From PC to Android:** Drag & drop files onto the desktop app, click your phone's bubble (📱) on the radar, and click **Send**. The photos and videos will appear directly in your phone's Gallery!
+
+---
+
+## 🛠️ Architecture & Protocol
+
+- **Discovery:** UDP Broadcast on port `52222`. Devices broadcast beacons and respond to pings.
+- **Transfer Engine:** High-performance chunked HTTP streaming on port `52223`. Zero cloud dependencies.
+- **Android Fallback:** Includes Google Nearby Connections P2P support for direct phone-to-phone transfers when Wi-Fi is unavailable.
+- **Desktop Runtime:** Pure Node.js standard library — no heavy node_modules to install.

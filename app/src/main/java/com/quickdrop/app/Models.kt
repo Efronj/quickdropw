@@ -2,9 +2,21 @@ package com.quickdrop.app
 
 import android.net.Uri
 
-data class Peer(val id: String, val name: String)
+data class Peer(
+    val id: String,
+    val name: String,
+    val deviceType: String = "mobile", // "mobile" or "desktop"
+    val ip: String = "",
+    val port: Int = 52223,
+    val isLan: Boolean = true,
+)
 
-data class Incoming(val id: String, val name: String, val digits: String)
+data class Incoming(
+    val id: String,
+    val name: String,
+    val digits: String,
+    val isLan: Boolean = false,
+)
 
 /** state: 0 = active, 1 = done, 2 = failed, 3 = canceled */
 data class Transfer(

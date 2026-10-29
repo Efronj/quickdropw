@@ -23,7 +23,7 @@ class MainVM(app: Application) : AndroidViewModel(app) {
         engine.restart()
     }
 
-    fun setVisible(v: Boolean) {
+    fun updateVisible(v: Boolean) {
         store.visible = v
         visible = v
         engine.restart()

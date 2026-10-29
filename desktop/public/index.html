@@ -1,0 +1,235 @@
+<!DOCTYPE html>
+<html lang="en">
+<head>
+  <meta charset="UTF-8">
+  <meta name="viewport" content="width=device-width, initial-scale=1.0">
+  <title>QuickDrop Desktop</title>
+  <link rel="stylesheet" href="style.css">
+  <link rel="preconnect" href="https://fonts.googleapis.com">
+  <link rel="preconnect" href="https://fonts.gstatic.com" crossorigin>
+  <link href="https://fonts.googleapis.com/css2?family=Plus+Jakarta+Sans:wght@400;500;600;700;800&display=swap" rel="stylesheet">
+</head>
+<body>
+  <div class="ambient-glows">
+    <div class="blob blob-blue"></div>
+    <div class="blob blob-violet"></div>
+    <div class="blob blob-mint"></div>
+    <div class="blob blob-pink"></div>
+  </div>
+
+  <div class="app-layout">
+    <!-- Top Header -->
+    <header class="header">
+      <div class="brand">
+        <div class="brand-icon">⚡</div>
+        <div class="brand-text">
+          <h1>QuickDrop</h1>
+          <span class="badge-desktop">Desktop</span>
+        </div>
+      </div>
+
+      <div class="header-actions">
+        <div class="device-pill" id="self-device-pill" title="Click to edit name">
+          <span class="status-dot"></span>
+          <span id="self-name">This PC</span>
+        </div>
+        <button class="btn btn-secondary" id="btn-open-folder" title="Open QuickDrop Downloads Folder">
+          📁 Open Folder
+        </button>
+        <button class="btn btn-icon" id="btn-settings" title="Settings">
+          ⚙️
+        </button>
+      </div>
+    </header>
+
+    <!-- Main Content Area -->
+    <main class="main-content">
+      <!-- Left Column: Radar & Nearby Devices -->
+      <section class="section-devices">
+        <div class="section-header">
+          <h2>Nearby Devices</h2>
+          <span class="peer-count" id="peer-count">0 found</span>
+        </div>
+
+        <div class="radar-container">
+          <div class="radar-circle radar-r3"></div>
+          <div class="radar-circle radar-r2"></div>
+          <div class="radar-circle radar-r1"></div>
+          <div class="radar-sweep"></div>
+          
+          <div class="radar-center">
+            <span class="radar-center-icon">💻</span>
+            <span class="radar-center-label">You</span>
+          </div>
+
+          <!-- Peer bubbles injected by JavaScript -->
+          <div class="peers-layer" id="peers-layer"></div>
+        </div>
+
+        <div class="radar-hint" id="radar-hint">
+          Looking for Android phones and PCs on the same Wi-Fi…
+        </div>
+
+        <!-- Selected Target Device Banner -->
+        <div class="selected-target-card" id="selected-target-card" style="display: none;">
+          <div class="target-info">
+            <span class="target-icon" id="target-icon">📱</span>
+            <div>
+              <div class="target-title" id="target-name">Galaxy S24</div>
+              <div class="target-sub" id="target-sub">Ready to receive files</div>
+            </div>
+          </div>
+          <button class="btn btn-small btn-secondary" id="btn-clear-target">✕ Deselect</button>
+        </div>
+      </section>
+
+      <!-- Right Column: Sharing Actions, Dropzone & Transfers -->
+      <section class="section-actions">
+        <!-- Quick Action Tiles -->
+        <div class="action-grid">
+          <div class="action-tile" id="tile-pick-files">
+            <div class="tile-icon bg-blue">📁</div>
+            <div class="tile-title">Browse Files</div>
+            <div class="tile-desc">Photos, videos, docs</div>
+          </div>
+          <div class="action-tile" id="tile-clipboard">
+            <div class="tile-icon bg-amber">📋</div>
+            <div class="tile-title">Send Clipboard</div>
+            <div class="tile-desc">Text or link</div>
+          </div>
+          <div class="action-tile" id="tile-note">
+            <div class="tile-icon bg-mint">✍️</div>
+            <div class="tile-title">Write Note</div>
+            <div class="tile-desc">Quick message</div>
+          </div>
+          <div class="action-tile" id="tile-browser-portal">
+            <div class="tile-icon bg-pink">🌐</div>
+            <div class="tile-title">Web Portal</div>
+            <div class="tile-desc">Scan with camera</div>
+          </div>
+        </div>
+
+        <!-- Drag & Drop Zone -->
+        <div class="dropzone" id="dropzone">
+          <input type="file" id="file-input" multiple style="display: none;">
+          <div class="dropzone-content">
+            <div class="dropzone-icon">📥</div>
+            <h3>Drop photos, videos or any files here</h3>
+            <p>or click to select files from your computer</p>
+          </div>
+        </div>
+
+        <!-- Staged Files Ready to Send -->
+        <div class="staged-card" id="staged-card" style="display: none;">
+          <div class="staged-header">
+            <div class="staged-summary" id="staged-summary">3 files selected (45.2 MB)</div>
+            <button class="btn btn-small btn-text" id="btn-clear-staged">Clear All</button>
+          </div>
+          <div class="staged-list" id="staged-list"></div>
+          <div class="staged-footer">
+            <button class="btn btn-primary btn-large btn-send" id="btn-send-staged">
+              🚀 Send to Selected Device
+            </button>
+          </div>
+        </div>
+
+        <!-- Active Transfers Section -->
+        <div class="transfers-section" id="transfers-section" style="display: none;">
+          <h3>Active Transfers</h3>
+          <div class="transfers-list" id="transfers-list"></div>
+        </div>
+
+        <!-- Recent Transfer History Section -->
+        <div class="history-section">
+          <div class="history-header">
+            <h3>Recent History</h3>
+            <button class="btn btn-small btn-text" id="btn-clear-history">Clear</button>
+          </div>
+          <div class="history-list" id="history-list">
+            <div class="empty-hint">No transfers yet. Shared files will appear here!</div>
+          </div>
+        </div>
+      </section>
+    </main>
+  </div>
+
+  <!-- Incoming Request Dialog / Modal -->
+  <div class="modal-backdrop" id="incoming-modal" style="display: none;">
+    <div class="glass-dialog">
+      <div class="dialog-icon">📲</div>
+      <h3 id="incoming-title">Incoming Transfer</h3>
+      <p id="incoming-desc">Pixel 8 wants to send 2 file(s) (12.4 MB)</p>
+      <div class="incoming-files-preview" id="incoming-files-preview"></div>
+      <div class="dialog-actions">
+        <button class="btn btn-secondary" id="btn-decline-incoming">Decline</button>
+        <button class="btn btn-primary" id="btn-accept-incoming">Accept Transfer</button>
+      </div>
+      <button class="btn btn-text btn-small" id="btn-trust-incoming" style="margin-top: 10px;">
+        ✓ Accept & Always Trust This Device
+      </button>
+    </div>
+  </div>
+
+  <!-- Note Dialog Modal -->
+  <div class="modal-backdrop" id="note-modal" style="display: none;">
+    <div class="glass-dialog">
+      <div class="dialog-icon">✍️</div>
+      <h3>Send Note or Link</h3>
+      <p>Type text, a URL or message to send to the selected device</p>
+      <textarea id="note-text" placeholder="Type message here…" rows="4"></textarea>
+      <div class="dialog-actions">
+        <button class="btn btn-secondary" id="btn-cancel-note">Cancel</button>
+        <button class="btn btn-primary" id="btn-send-note">Send Note</button>
+      </div>
+    </div>
+  </div>
+
+  <!-- Web Portal / QR Modal -->
+  <div class="modal-backdrop" id="portal-modal" style="display: none;">
+    <div class="glass-dialog">
+      <div class="dialog-icon">📱</div>
+      <h3>Connect from Any Device</h3>
+      <p>Scan with your phone's camera or open this URL in any browser:</p>
+      <div class="portal-url-box" id="portal-url">http://192.168.1.5:52223</div>
+      <div id="qrcode-container" class="qrcode-container"></div>
+      <div class="dialog-actions">
+        <button class="btn btn-primary" id="btn-close-portal">Close</button>
+      </div>
+    </div>
+  </div>
+
+  <!-- Settings Modal -->
+  <div class="modal-backdrop" id="settings-modal" style="display: none;">
+    <div class="glass-dialog">
+      <div class="dialog-icon">⚙️</div>
+      <h3>QuickDrop Settings</h3>
+      <div class="settings-group">
+        <label>Computer Display Name</label>
+        <input type="text" id="settings-name" placeholder="E.g. Efron's PC">
+      </div>
+      <div class="settings-group switch-group">
+        <div>
+          <label>Auto-Accept Transfers</label>
+          <span class="setting-sub">Automatically save incoming files from nearby devices without asking</span>
+        </div>
+        <input type="checkbox" id="settings-auto-accept">
+      </div>
+      <div class="settings-group">
+        <label>Storage Location</label>
+        <div class="download-path" id="settings-download-path">Downloads\QuickDrop</div>
+      </div>
+      <div class="dialog-actions">
+        <button class="btn btn-secondary" id="btn-close-settings">Cancel</button>
+        <button class="btn btn-primary" id="btn-save-settings">Save</button>
+      </div>
+    </div>
+  </div>
+
+  <!-- Toast Notification Container -->
+  <div class="toast-container" id="toast-container"></div>
+
+  <!-- QR Code library for local rendering -->
+  <script src="https://cdn.jsdelivr.net/npm/qrcodejs@1.0.0/qrcode.min.js"></script>
+  <script src="app.js"></script>
+</body>
+</html>
